@@ -1,8 +1,8 @@
 import sys, os
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, 
                              QWidget, QFileDialog, QLineEdit, QTextEdit, QCheckBox, QHBoxLayout, 
-                             QStatusBar, QMenuBar, QSizePolicy, QFileDialog, QMessageBox)
-from PyQt6.QtGui import QAction, QPixmap, QIcon, QPainter, QKeyEvent
+                             QStatusBar, QSizePolicy, QFileDialog, QMessageBox)
+from PyQt6.QtGui import QAction, QPixmap, QIcon, QKeyEvent
 from PyQt6.QtCore import Qt
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
 
@@ -164,6 +164,9 @@ class Photo(QMainWindow):
             self.like_btn.setIcon(QIcon("icons/heart_filled.png") if self.likes[self.current_index] else QIcon("icons/heart_empty.png")) # Aggiorna l'icona del like
             self.favorite_check.setChecked(self.favorites[self.current_index]) # Aggiorna la casella di selezione preferiti
             self.update_image_details() # Aggiorna i dettagli dell'immagine
+
+            filename = os.path.basename(self.image_paths[self.current_index])  # Ottieni solo il nome del file
+            self.setWindowTitle(f"Photo - {filename}")  # Imposta il titolo della finestra con il nome del file
 
     def resizeEvent(self, event): # Sovrascrive il metodo resizeEvent della finestra principale
         self.update_display()
