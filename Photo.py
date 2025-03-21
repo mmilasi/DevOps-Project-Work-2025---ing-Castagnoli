@@ -2,7 +2,7 @@ import sys, os
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, 
                              QWidget, QFileDialog, QLineEdit, QTextEdit, QCheckBox, QHBoxLayout, 
                              QStatusBar, QSizePolicy, QFileDialog, QMessageBox)
-from PyQt6.QtGui import QAction, QPixmap, QIcon, QKeyEvent
+from PyQt6.QtGui import QAction, QPixmap, QIcon, QKeyEvent, QTransform
 from PyQt6.QtCore import Qt
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
 
@@ -78,7 +78,16 @@ class Photo(QMainWindow):
         self.like_btn.setStyleSheet("padding: 5px;")
         btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft) # Allinea il pulsante a sinistra
         self.like_btn.clicked.connect(self.toggle_like) # Collega il pulsante al metodo toggle_like
-        btn_act_layout.addWidget(self.like_btn) # Aggiungi il pulsante alla barra dei pulsanti        
+        btn_act_layout.addWidget(self.like_btn) # Aggiungi il pulsante alla barra dei pulsanti
+
+        # Pulsante Ruota
+        self.rotate_btn = QPushButton()
+        self.rotate_btn.setIcon(QIcon("icons/rotate.png"))
+        self.rotate_btn.setFixedSize(50, 50)
+        self.rotate_btn.setStyleSheet("padding: 5px;")
+        btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft) # Allinea il pulsante a sinistra
+        self.rotate_btn.clicked.connect(self.rotate_image)  # Collega il pulsante al metodo rotate_image
+        btn_act_layout.addWidget(self.rotate_btn) # Aggiungi il pulsante alla barra dei pulsanti   
 
         # Pulsante Download
         self.dwn_btn = QPushButton()
@@ -132,6 +141,7 @@ class Photo(QMainWindow):
         self.likes = [] # Lista di like per le immagini
         self.comments = {} # Dizionario di commenti per le immagini
         self.favorites = [] # Lista di immagini preferite
+        self.rotation_angle = 0  # Variabile per memorizzare l'angolo di rotazione dell'immagine
     
     def load_images(self): # Metodo per caricare le immagini
         files, _ = QFileDialog.getOpenFileNames(self, "Seleziona Immagini", "", "Images (*.png *.jpg *.jpeg)")
@@ -142,6 +152,11 @@ class Photo(QMainWindow):
             self.likes = [False] * len(self.image_paths) # Inizializza i like per le immagini
             self.favorites = [False] * len(self.image_paths) # Inizializza le immagini preferite
             self.update_display() # Aggiorna l'interfaccia con l'immagine corrente
+
+    def rotate_image(self): # Metodo per ruotare l'immagine di 90 gradi
+        if self.image_paths:
+            self.rotation_angle = (self.rotation_angle + 90) % 360  # Incrementa l'angolo di rotazione di 90 gradi
+            self.update_display()  # Rendi l'immagine ruotata
             
     def update_display(self): # Metodo per aggiornare l'interfaccia con l'immagine corrente
         if self.image_paths: # Se ci sono immagini caricate
@@ -152,6 +167,10 @@ class Photo(QMainWindow):
             x_offset = (pixmap.width() - min_side) // 2
             y_offset = (pixmap.height() - min_side) // 2
             cropped_pixmap = pixmap.copy(x_offset, y_offset, min_side, min_side)
+            # Ruota l'immagine
+            if self.rotation_angle != 0:  # If the image needs to be rotated
+                transform = QTransform().rotate(self.rotation_angle)  # Create a transform with the rotation angle
+                cropped_pixmap = cropped_pixmap.transformed(transform)  # Apply the rotation to the cropped_pixmap instead
             # Scala l'immagine per adattarla alla finestra solo se necessario
             if cropped_pixmap.width() > size or cropped_pixmap.height() > size:
                 scaled_pixmap = cropped_pixmap.scaled(size, size, aspectRatioMode=Qt.AspectRatioMode.KeepAspectRatio)
