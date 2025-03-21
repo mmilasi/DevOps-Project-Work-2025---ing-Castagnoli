@@ -1,0 +1,16 @@
+# Created by venv; see https://docs.python.org/3/library/venv.html
+Scripts/
+Include/
+Lib/
+
+# Python bytecode files
+*.pyc
+*.pyo
+
+# Other common files to ignore
+*.log
+__pycache__/
+
+# Python packaging files (if you don't want them tracked)
+*.egg-info/
+pyvenv.cfg
