@@ -5,89 +5,97 @@ import shutil
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, 
                              QWidget, QFileDialog, QLineEdit, QTextEdit, QCheckBox, QHBoxLayout, 
                              QStatusBar, QSizePolicy, QFileDialog, QMessageBox)
-from PyQt6.QtGui import QAction, QPixmap, QIcon, QKeyEvent, QTransform
+from PyQt6.QtGui import QAction, QPixmap, QIcon, QKeyEvent, QTransform, QTextCursor, QTextBlockFormat
 from PyQt6.QtCore import Qt
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
 
 class Photo(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Photo") # Imposta il titolo della finestra
-        self.setGeometry(100, 100, 450, 700) # Imposta la dimensione della finestra
-        
+        self.setWindowTitle("Photo")  # Imposta il titolo della finestra
+        self.setGeometry(100, 100, 450, 700)  # Imposta la dimensione della finestra
+
         # Layout principale
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
-        self.layout = QVBoxLayout()
+        self.layout = QVBoxLayout(self.central_widget)  # Imposta il layout principale UNA SOLA VOLTA
 
         # Elementi dell'interfaccia
-        btn_layout = QHBoxLayout() # Crea un layout ORIZZONTALE per i pulsanti di navigazione
-        btn_act_layout = QHBoxLayout() # Crea un layout ORIZZONTALE per i pulsanti di azione
-        self.image_label = QLabel(self) # Crea un'etichetta per l'immagine
+        self.is_image_fullscreen = False  # Imposta la modalità fullscreen dell'immagine a false di default
 
-        self.layout.addWidget(self.image_label, alignment=Qt.AlignmentFlag.AlignCenter) # Aggiungi l'etichetta all'interfaccia
-        self.layout.addLayout(btn_layout) # Aggiungi il layout dei pulsanti di navigazione all'interfaccia
-        self.layout.addLayout(btn_act_layout) # Aggiungi il layout dei pulsanti di azione all'interfaccia
-        self.is_image_fullscreen = False # Imposta la modalità fullscreen dell'immagine a false di default
-        
         # Barra di stato
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
-        
+
         # Menù
         menubar = self.menuBar()
         file_menu = menubar.addMenu("File")
-        open_action = QAction("Carica Immagini", self) # Crea un'opzione per caricare le immagini
-        open_action.triggered.connect(self.load_images) # Collega l'opzione al metodo load_images
-        file_menu.addAction(open_action) # Aggiungi l'opzione al menù
-        exit_action = QAction("Esci", self) # Crea un'opzione per uscire dall'applicazione
-        exit_action.triggered.connect(self.close) # Collega l'opzione al metodo close
-        file_menu.addAction(exit_action) # Aggiungi l'opzione al menù
-        
-        # Etichetta immagine
-        self.image_label.setScaledContents(True) # Ridimensiona l'immagine per adattarla alla finestra
-        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter) # Allinea l'immagine al centro
-        self.image_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding) # Permetti l'espansione dell'etichetta
+        open_action = QAction("Carica Immagini", self)  # Crea un'opzione per caricare le immagini
+        open_action.triggered.connect(self.load_images)  # Collega l'opzione al metodo load_images
+        file_menu.addAction(open_action)  # Aggiungi l'opzione al menù
+        exit_action = QAction("Esci", self)  # Crea un'opzione per uscire dall'applicazione
+        exit_action.triggered.connect(self.close)  # Collega l'opzione al metodo close
+        file_menu.addAction(exit_action)  # Aggiungi l'opzione al menù
 
-        
+        # Etichetta immagine
+        self.image_label = QLabel(self)  # Crea un'etichetta per l'immagine
+        self.image_label.setScaledContents(True)  # Ridimensiona l'immagine per adattarla alla finestra
+        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)  # Allinea l'immagine al centro
+        self.image_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)  # Permetti l'espansione dell'etichetta
+        self.layout.addWidget(self.image_label, alignment=Qt.AlignmentFlag.AlignCenter)  # Aggiungi l'etichetta all'interfaccia
+
+        # Casella di testo per descrizioni
+        self.comment_box = QTextEdit()  # Crea una casella di testo per le descrizioni delle foto
+        self.comment_box.setReadOnly(True)  # Imposta la casella di testo come sola lettura
+        self.comment_box.setFixedHeight(self.comment_box.fontMetrics().height() + 10)  # Altezza iniziale per una riga
+        self.comment_box.textChanged.connect(self.adjust_textedit_height)  # Connetti al ridimensionamento automatico
+        self.comment_box.setAlignment(Qt.AlignmentFlag.AlignCenter)  # Centra il testo
+        self.layout.addWidget(self.comment_box)  # Aggiungi la casella di testo all'interfaccia
+
         # Pulsanti per la navigazione
+        btn_layout = QHBoxLayout()  # Crea un layout ORIZZONTALE per i pulsanti di navigazione
         # Pulsante nav sinistra
-        self.prev_btn = QPushButton("←") # Crea un pulsante per l'immagine precedente
+        self.prev_btn = QPushButton("←")  # Crea un pulsante per l'immagine precedente
         self.prev_btn.setStyleSheet("padding: 5px;")
         self.prev_btn.clicked.connect(self.prev_image)
         self.prev_btn.setFixedHeight(50)
         # Pulsante Fullscreen per l'immagine
-        self.fullscreen_img_btn = QPushButton() # Crea un pulsante per attivare/disattivare la modalità fullscreen
-        self.fullscreen_img_btn.setIcon(QIcon("icons/fullscreen.png")) # Usa un'icona di fullscreen
-        self.fullscreen_img_btn.setFixedSize(50, 50) # Imposta la dimensione del pulsante
+        self.fullscreen_img_btn = QPushButton()  # Crea un pulsante per attivare/disattivare la modalità fullscreen
+        self.fullscreen_img_btn.setIcon(QIcon("icons/fullscreen.png"))  # Usa un'icona di fullscreen
+        self.fullscreen_img_btn.setFixedSize(50, 50)  # Imposta la dimensione del pulsante
         self.fullscreen_img_btn.setStyleSheet("padding: 5px;")
-        self.fullscreen_img_btn.clicked.connect(self.toggle_image_fullscreen) # Collega il pulsante al metodo toggle_image_fullscreen
+        self.fullscreen_img_btn.clicked.connect(self.toggle_image_fullscreen)  # Collega il pulsante al metodo toggle_image_fullscreen
         # Pulsante nav destra
-        self.next_btn = QPushButton("→") # Crea un pulsante per l'immagine successiva
+        self.next_btn = QPushButton("→")  # Crea un pulsante per l'immagine successiva
         self.next_btn.setFixedHeight(50)
         self.next_btn.setStyleSheet("padding: 5px;")
-        self.next_btn.clicked.connect(self.next_image) # Collega il pulsante al metodo next_image
-        btn_layout.addWidget(self.prev_btn) # Aggiungi il pulsante precedente al layout
-        btn_layout.addWidget(self.fullscreen_img_btn) # Aggiungi il pulsante fullscreen al layout
-        btn_layout.addWidget(self.next_btn) # Aggiungi il pulsante successivo al layout
-        
+        self.next_btn.clicked.connect(self.next_image)  # Collega il pulsante al metodo next_image
+        btn_layout.addWidget(self.prev_btn)  # Aggiungi il pulsante precedente al layout
+        btn_layout.addWidget(self.fullscreen_img_btn)  # Aggiungi il pulsante fullscreen al layout
+        btn_layout.addWidget(self.next_btn)  # Aggiungi il pulsante successivo al layout
+        self.layout.addLayout(btn_layout)  # Aggiungi il layout dei pulsanti di navigazione all'interfaccia
+
+        # Layout per i pulsanti di azione
+        btn_act_layout = QHBoxLayout()  # Crea un layout ORIZZONTALE per i pulsanti di azione
+        self.layout.addLayout(btn_act_layout)  # Aggiungi il layout dei pulsanti di azione all'interfaccia
+
         # Pulsante Like
         self.like_btn = QPushButton()
         self.like_btn.setIcon(QIcon("icons/heart_empty.png"))
         self.like_btn.setFixedSize(50, 50)
         self.like_btn.setStyleSheet("padding: 5px;")
-        btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft) # Allinea il pulsante a sinistra
-        self.like_btn.clicked.connect(self.toggle_like) # Collega il pulsante al metodo toggle_like
-        btn_act_layout.addWidget(self.like_btn) # Aggiungi il pulsante alla barra dei pulsanti
+        btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)  # Allinea il pulsante a sinistra
+        self.like_btn.clicked.connect(self.toggle_like)  # Collega il pulsante al metodo toggle_like
+        btn_act_layout.addWidget(self.like_btn)  # Aggiungi il pulsante alla barra dei pulsanti
 
         # Pulsante Ruota
         self.rotate_btn = QPushButton()
         self.rotate_btn.setIcon(QIcon("icons/rotate.png"))
         self.rotate_btn.setFixedSize(50, 50)
         self.rotate_btn.setStyleSheet("padding: 5px;")
-        btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft) # Allinea il pulsante a sinistra
+        btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)  # Allinea il pulsante a sinistra
         self.rotate_btn.clicked.connect(self.rotate_image)  # Collega il pulsante al metodo rotate_image
-        btn_act_layout.addWidget(self.rotate_btn) # Aggiungi il pulsante alla barra dei pulsanti   
+        btn_act_layout.addWidget(self.rotate_btn)  # Aggiungi il pulsante alla barra dei pulsanti
 
         # Pulsante Download
         self.dwn_btn = QPushButton()
@@ -95,8 +103,8 @@ class Photo(QMainWindow):
         self.dwn_btn.setFixedSize(50, 50)
         self.dwn_btn.setStyleSheet("padding: 5px;")
         btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.dwn_btn.clicked.connect(self.download_images) # Collega il pulsante al metodo download_image        
-        btn_act_layout.addWidget(self.dwn_btn) # Aggiungi il pulsante alla barra dei pulsanti
+        self.dwn_btn.clicked.connect(self.download_images)  # Collega il pulsante al metodo download_image
+        btn_act_layout.addWidget(self.dwn_btn)  # Aggiungi il pulsante alla barra dei pulsanti
 
         # Pulsante Elimina
         self.del_btn = QPushButton()
@@ -104,8 +112,7 @@ class Photo(QMainWindow):
         self.del_btn.setFixedSize(50, 50)
         self.del_btn.setStyleSheet("padding: 5px;")
         btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        # implementare il metodo delete_image
-        btn_act_layout.addWidget(self.del_btn) # Aggiungi il pulsante alla barra dei pulsanti
+        btn_act_layout.addWidget(self.del_btn)  # Aggiungi il pulsante alla barra dei pulsanti
 
         # Pulsante Stampa
         self.print_btn = QPushButton()
@@ -113,38 +120,27 @@ class Photo(QMainWindow):
         self.print_btn.setFixedSize(50, 50)
         self.print_btn.setStyleSheet("padding: 5px;")
         btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        # implementare il metodo print_image
-        btn_act_layout.addWidget(self.print_btn) # Aggiungi il pulsante alla barra dei pulsanti        
-        
-        # Casella di testo per descizioni
-        self.comment_box = QTextEdit() # Crea una casella di testo per le descrizioni delle foto
-        self.comment_box.setReadOnly(True) # Imposta la casella di testo come sola lettura
-        self.comment_box.setFixedHeight(self.comment_box.fontMetrics().height() + 10)  # Altezza iniziale per una riga
-        self.comment_box.textChanged.connect(self.adjust_textedit_height)  # Connetti al ridimensionamento automatico
-        self.layout.addWidget(self.comment_box) # Aggiungi la casella di testo all'interfaccia
-        
+        btn_act_layout.addWidget(self.print_btn)  # Aggiungi il pulsante alla barra dei pulsanti
+
         # Casella di input per nuova descrizione
         self.comment_input = QLineEdit()
-        self.comment_input.setPlaceholderText("Aggiungi una descrizione...") # Testo di esempio nella casella di input
-        self.comment_input.returnPressed.connect(self.add_comment) # Collega la pressione del tasto Invio al metodo add_comment
-        self.layout.addWidget(self.comment_input) # Aggiungi la casella di input all'interfaccia
-        
+        self.comment_input.setPlaceholderText("Aggiungi una descrizione...")  # Testo di esempio nella casella di input
+        self.comment_input.returnPressed.connect(self.add_comment)  # Collega la pressione del tasto Invio al metodo add_comment
+        self.layout.addWidget(self.comment_input)  # Aggiungi la casella di input all'interfaccia
+
         # Casella di selezione per preferiti
-        self.favorite_check = QCheckBox("Aggiungi alla selezione multipla") # Crea una casella di selezione per le immagini multiple selezionate per scaricarle
+        self.favorite_check = QCheckBox("Aggiungi alla selezione multipla")  # Crea una casella di selezione per le immagini multiple selezionate per scaricarle
         self.favorite_check.stateChanged.connect(self.toggle_favorite)
-        self.layout.addWidget(self.favorite_check) # Aggiungi la casella di selezione all'interfaccia
-        
-        self.central_widget.setLayout(self.layout) # Imposta il layout principale per la finestra
-        
+        self.layout.addWidget(self.favorite_check)  # Aggiungi la casella di selezione all'interfaccia
+
         # Variabili di stato
-        self.image_paths = [] # Lista di percorsi delle immagini
-        self.current_index = 0 # Indice dell'immagine corrente
-        self.likes = [] # Lista di like per le immagini
-        self.comments = {} # Dizionario di commenti per le immagini
-        self.favorites = {} # Lista di immagini preferite
+        self.image_paths = []  # Lista di percorsi delle immagini
+        self.current_index = 0  # Indice dell'immagine corrente
+        self.likes = []  # Lista di like per le immagini
+        self.comments = {}  # Dizionario di commenti per le immagini
+        self.favorites = {}  # Lista di immagini preferite
         self.rotation_angle = 0  # Variabile per memorizzare l'angolo di rotazione dell'immagine
         self.selected_images = []  # Lista per tenere traccia delle immagini selezionate
-
 
 # METODI -------------------------------------------------------------------------------------------------------
     
@@ -184,7 +180,8 @@ class Photo(QMainWindow):
             self.image_label.setPixmap(scaled_pixmap) # Imposta l'immagine nell'etichetta
             self.image_label.setFixedSize(size, size)  # Mantieni l'immagine quadrata
             # Aggiorna i commenti e i like
-            self.comment_box.setPlainText(self.comments.get(self.image_paths[self.current_index], "")) # Aggiorna i commenti
+            self.comment_box.setPlainText(self.comments.get(self.image_paths[self.current_index], ""))  # Aggiorna i commenti
+            self.center_text_in_comment_box()  # Centra il testo nel QTextEdit
             self.like_btn.setIcon(QIcon("icons/heart_filled.png") if self.likes[self.current_index] else QIcon("icons/heart_empty.png")) # Aggiorna l'icona del like
             self.favorite_check.setChecked(self.favorites[self.current_index]) # Aggiorna la casella di selezione preferiti
             self.update_image_details() # Aggiorna i dettagli dell'immagine
@@ -244,8 +241,20 @@ class Photo(QMainWindow):
         max_height = 200  # Limite massimo opzionale
         self.comment_box.setFixedHeight(min(new_height, max_height))  # Imposta la nuova altezza
 
-    def add_comment(self): # Metodo per aggiungere una descrizione
-        comment = self.comment_input.text() # Ottieni il testo dalla casella di input
+    def center_text_in_comment_box(self):
+        cursor = self.comment_box.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.Start)  # Move cursor to the start of the document
+        cursor.movePosition(QTextCursor.MoveOperation.End, QTextCursor.MoveMode.KeepAnchor)  # Select the entire document
+        format = QTextBlockFormat()
+        format.setAlignment(Qt.AlignmentFlag.AlignCenter)  # Set alignment to center
+        cursor.mergeBlockFormat(format)
+        # Deselect the text by moving the cursor to the end without selecting
+        cursor.movePosition(QTextCursor.MoveOperation.End)        
+        # Set the cursor back to the QTextEdit
+        self.comment_box.setTextCursor(cursor)
+
+    def add_comment(self):
+        comment = self.comment_input.text()  # Ottieni il testo dalla casella di input
         if not self.image_paths:  # Se la lista è vuota
             self.show_alert("Errore: Nessuna immagine caricata!")
             return
@@ -254,9 +263,10 @@ class Photo(QMainWindow):
             self.show_alert("Errore: Il commento non può essere vuoto!")
             return
         if comment:
-            self.comments[self.image_paths[self.current_index]] = comment # Aggiorna il commento per l'immagine corrente
-            self.comment_box.setPlainText(comment) # Aggiorna la casella di testo con il nuovo commento
-            self.comment_input.clear() # Cancella il testo dalla casella di input
+            self.comments[self.image_paths[self.current_index]] = comment  # Aggiorna il commento per l'immagine corrente
+            self.comment_box.setPlainText(comment)  # Aggiorna la casella di testo con il nuovo commento
+            self.center_text_in_comment_box()  # Centra il testo nel QTextEdit
+            self.comment_input.clear()  # Cancella il testo dalla casella di input
 
     def toggle_favorite(self):
         if self.image_paths:
@@ -281,7 +291,6 @@ class Photo(QMainWindow):
             self.favorite_check.blockSignals(True)  # Evita attivazione del segnale mentre aggiorniamo lo stato
             self.favorite_check.setChecked(self.favorites.get(self.current_index, False))
             self.favorite_check.blockSignals(False)  # Riattiva i segnali dopo l'aggiornamento
-
 
     def download_images(self):
         # If no images are selected, download the currently displayed image
