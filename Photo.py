@@ -1,4 +1,7 @@
 import sys, os
+import zipfile
+import tempfile
+import shutil
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, 
                              QWidget, QFileDialog, QLineEdit, QTextEdit, QCheckBox, QHBoxLayout, 
                              QStatusBar, QSizePolicy, QFileDialog, QMessageBox)
@@ -37,9 +40,6 @@ class Photo(QMainWindow):
         open_action = QAction("Carica Immagini", self) # Crea un'opzione per caricare le immagini
         open_action.triggered.connect(self.load_images) # Collega l'opzione al metodo load_images
         file_menu.addAction(open_action) # Aggiungi l'opzione al menù
-        save_action = QAction("Salva Selezioni", self) # Crea un'opzione per salvare le immagini preferite selezionate
-        save_action.triggered.connect(self.save_favorites) # Collega l'opzione al metodo save_favorites
-        file_menu.addAction(save_action) # Aggiungi l'opzione al menù
         exit_action = QAction("Esci", self) # Crea un'opzione per uscire dall'applicazione
         exit_action.triggered.connect(self.close) # Collega l'opzione al metodo close
         file_menu.addAction(exit_action) # Aggiungi l'opzione al menù
@@ -95,7 +95,7 @@ class Photo(QMainWindow):
         self.dwn_btn.setFixedSize(50, 50)
         self.dwn_btn.setStyleSheet("padding: 5px;")
         btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.dwn_btn.clicked.connect(self.download_image) # Collega il pulsante al metodo download_image        
+        self.dwn_btn.clicked.connect(self.download_images) # Collega il pulsante al metodo download_image        
         btn_act_layout.addWidget(self.dwn_btn) # Aggiungi il pulsante alla barra dei pulsanti
 
         # Pulsante Elimina
@@ -131,6 +131,7 @@ class Photo(QMainWindow):
         
         # Casella di selezione per preferiti
         self.favorite_check = QCheckBox("Aggiungi alla selezione multipla") # Crea una casella di selezione per le immagini multiple selezionate per scaricarle
+        self.favorite_check.stateChanged.connect(self.toggle_favorite)
         self.layout.addWidget(self.favorite_check) # Aggiungi la casella di selezione all'interfaccia
         
         self.central_widget.setLayout(self.layout) # Imposta il layout principale per la finestra
@@ -140,8 +141,12 @@ class Photo(QMainWindow):
         self.current_index = 0 # Indice dell'immagine corrente
         self.likes = [] # Lista di like per le immagini
         self.comments = {} # Dizionario di commenti per le immagini
-        self.favorites = [] # Lista di immagini preferite
+        self.favorites = {} # Lista di immagini preferite
         self.rotation_angle = 0  # Variabile per memorizzare l'angolo di rotazione dell'immagine
+        self.selected_images = []  # Lista per tenere traccia delle immagini selezionate
+
+
+# METODI -------------------------------------------------------------------------------------------------------
     
     def load_images(self): # Metodo per caricare le immagini
         files, _ = QFileDialog.getOpenFileNames(self, "Seleziona Immagini", "", "Images (*.png *.jpg *.jpeg)")
@@ -251,27 +256,88 @@ class Photo(QMainWindow):
         if comment:
             self.comments[self.image_paths[self.current_index]] = comment # Aggiorna il commento per l'immagine corrente
             self.comment_box.setPlainText(comment) # Aggiorna la casella di testo con il nuovo commento
-        self.comment_input.clear() # Cancella il testo dalla casella di input
+            self.comment_input.clear() # Cancella il testo dalla casella di input
 
-    def save_favorites(self): # Metodo per salvare le immagini multiple selezionate
-        favorite_images = [img for i, img in enumerate(self.image_paths) if self.favorites[i]]
-        print("Immagini preferite:", favorite_images)
-
-    def download_image(self): # Metodo per scaricare l'immagine corrente
-        if not self.image_paths:
-            QMessageBox.warning(self, "Attenzione", "Nessuna immagine da scaricare.")
-            return
-        current_image_path = self.image_paths[self.current_index]  # Ottieni il percorso dell'immagine corrente
-        options = QFileDialog.Option(0)
-        save_path, _ = QFileDialog.getSaveFileName(self, "Salva Immagine", "", "Images (*.png *.jpg *.jpeg);;All Files (*)", options=options)
-        if save_path:  # Se l'utente ha selezionato un percorso
-            pixmap = QPixmap(current_image_path)  # Carica l'immagine
-            if pixmap.save(save_path):  # Salva l'immagine nel percorso scelto
-                QMessageBox.information(self, "Download completato", f"Immagine salvata in:\n{save_path}")
+    def toggle_favorite(self):
+        if self.image_paths:
+            # Update the favorite status for the current image
+            self.favorites[self.current_index] = self.favorite_check.isChecked()
+            # Add or remove the current image from the selected_images list
+            current_image = self.image_paths[self.current_index]
+            if self.favorite_check.isChecked():
+                if current_image not in self.selected_images:
+                    self.selected_images.append(current_image)
             else:
-                QMessageBox.critical(self, "Errore", "Impossibile salvare l'immagine.")
+                if current_image in self.selected_images:
+                    self.selected_images.remove(current_image)
+            # Update the status bar message
+            self.status_bar.showMessage(f"Immagini selezionate: {len(self.selected_images)}")
 
-                # verificare QWindowsNativeFileDialogBase::shellItem : Unhandled scheme:  "data" !!!!!!!!!!!
+    def update_ui(self): # Aggiorna l'interfaccia quando si cambia immagine
+        if self.image_paths:
+            self.image_label.setPixmap(QPixmap(self.image_paths[self.current_index]))  
+
+            # Controlla se l'immagine è nei preferiti e aggiorna la checkbox
+            self.favorite_check.blockSignals(True)  # Evita attivazione del segnale mentre aggiorniamo lo stato
+            self.favorite_check.setChecked(self.favorites.get(self.current_index, False))
+            self.favorite_check.blockSignals(False)  # Riattiva i segnali dopo l'aggiornamento
+
+
+    def download_images(self):
+        # If no images are selected, download the currently displayed image
+        if not self.selected_images:
+            if not self.image_paths:
+                QMessageBox.warning(self, "Attenzione", "Nessuna immagine da scaricare.")
+                return
+            # Use the current image as the only image to download
+            images_to_download = [self.image_paths[self.current_index]]
+        else:
+            images_to_download = self.selected_images
+        # If only one image is being downloaded, save it directly without zipping
+        if len(images_to_download) == 1:
+            image_path = images_to_download[0]
+            # Ask the user where to save the image
+            save_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Salva Immagine",
+                os.path.basename(image_path),  # Default filename
+                "Images (*.png *.jpg *.jpeg);;All Files (*)"            )
+            
+            if save_path:
+                try:
+                    shutil.copy(image_path, save_path)  # Copy the image to the selected location
+                    QMessageBox.information(self, "Download completato", f"Immagine salvata in:\n{save_path}")
+                except Exception as e:
+                    QMessageBox.critical(self, "Errore", f"Impossibile salvare l'immagine: {str(e)}")
+        
+        else:  # If multiple images are selected, zip them
+            # Ask the user where to save the ZIP file
+            save_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Salva Immagini come ZIP",
+                "",
+                "ZIP Files (*.zip);;All Files (*)"
+            )            
+            if save_path:
+                # Create a temporary directory to store the images before zipping
+                temp_dir = tempfile.mkdtemp()                
+                try:
+                    # Copy selected images to the temporary directory                
+                    for i, image_path in enumerate(images_to_download):
+                        shutil.copy(image_path, os.path.join(temp_dir, f"image_{i+1}{os.path.splitext(image_path)[1]}"))                    
+                    # Create a ZIP file
+                    with zipfile.ZipFile(save_path, 'w') as zipf:
+                        for root, dirs, files in os.walk(temp_dir):
+                            for file in files:
+                                zipf.write(os.path.join(root, file), os.path.basename(file))
+                    
+                    QMessageBox.information(self, "Download completato", f"Immagini salvate in:\n{save_path}")
+                
+                except Exception as e:
+                    QMessageBox.critical(self, "Errore", f"Impossibile creare il file ZIP: {str(e)}")                
+                finally:
+                    # Clean up the temporary directory                
+                    shutil.rmtree(temp_dir)
 
     def update_image_details(self):
         if self.image_paths:
