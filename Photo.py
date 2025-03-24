@@ -376,8 +376,6 @@ class Photo(QMainWindow):
         failed_deletions = []
         for image_path in images_to_delete:
             try:
-                # # Rimuovi da filesystem
-                # os.remove(image_path)                
                 # Rimuovi da liste interne se esistono
                 if image_path in self.image_paths:
                     index = self.image_paths.index(image_path)
