@@ -103,7 +103,7 @@ class Photo(QMainWindow):
         self.dwn_btn.setFixedSize(50, 50)
         self.dwn_btn.setStyleSheet("padding: 5px;")
         btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.dwn_btn.clicked.connect(self.download_images)  # Collega il pulsante al metodo download_image
+        self.dwn_btn.clicked.connect(self.download_images)  # Collega il pulsante al metodo download_images
         btn_act_layout.addWidget(self.dwn_btn)  # Aggiungi il pulsante alla barra dei pulsanti
 
         # Pulsante Elimina
@@ -112,6 +112,7 @@ class Photo(QMainWindow):
         self.del_btn.setFixedSize(50, 50)
         self.del_btn.setStyleSheet("padding: 5px;")
         btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.del_btn.clicked.connect(self.delete_images)  # Collega il pulsante al metodo delete_images
         btn_act_layout.addWidget(self.del_btn)  # Aggiungi il pulsante alla barra dei pulsanti
 
         # Pulsante Stampa
@@ -120,6 +121,7 @@ class Photo(QMainWindow):
         self.print_btn.setFixedSize(50, 50)
         self.print_btn.setStyleSheet("padding: 5px;")
         btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        # collegare con metodo print_images
         btn_act_layout.addWidget(self.print_btn)  # Aggiungi il pulsante alla barra dei pulsanti
 
         # Casella di input per nuova descrizione
@@ -128,10 +130,10 @@ class Photo(QMainWindow):
         self.comment_input.returnPressed.connect(self.add_comment)  # Collega la pressione del tasto Invio al metodo add_comment
         self.layout.addWidget(self.comment_input)  # Aggiungi la casella di input all'interfaccia
 
-        # Casella di selezione per preferiti
-        self.favorite_check = QCheckBox("Aggiungi alla selezione multipla")  # Crea una casella di selezione per le immagini multiple selezionate per scaricarle
+        # Casella di selezione multipla
+        self.favorite_check = QCheckBox("Aggiungi alla selezione multipla")  # Crea una casella di selezione per le immagini multiple selezionate per gestirle
         self.favorite_check.stateChanged.connect(self.toggle_favorite)
-        self.layout.addWidget(self.favorite_check)  # Aggiungi la casella di selezione all'interfaccia
+        self.layout.addWidget(self.favorite_check)  # Aggiungi la casella di selezione multipla all'interfaccia
 
         # Variabili di stato
         self.image_paths = []  # Lista di percorsi delle immagini
@@ -149,7 +151,7 @@ class Photo(QMainWindow):
         if files: # Se sono state selezionate delle immagini
             self.image_paths = files # Aggiorna la lista di percorsi delle immagini
             self.current_index = 0 # Imposta l'indice dell'immagine corrente a 0
-            self.comments = {img: "" for img in self.image_paths} # Inizializza i commenti per le immagini
+            self.comments = {img: "" for img in self.image_paths} # Inizializza le descrizioni per le immagini
             self.likes = [False] * len(self.image_paths) # Inizializza i like per le immagini
             self.favorites = [False] * len(self.image_paths) # Inizializza le immagini preferite
             self.update_display() # Aggiorna l'interfaccia con l'immagine corrente
@@ -157,7 +159,7 @@ class Photo(QMainWindow):
     def rotate_image(self): # Metodo per ruotare l'immagine di 90 gradi
         if self.image_paths:
             self.rotation_angle = (self.rotation_angle + 90) % 360  # Incrementa l'angolo di rotazione di 90 gradi
-            self.update_display()  # Rendi l'immagine ruotata
+            self.update_display()  # Visualizza l'immagine ruotata
             
     def update_display(self): # Metodo per aggiornare l'interfaccia con l'immagine corrente
         if self.image_paths: # Se ci sono immagini caricate
@@ -169,23 +171,21 @@ class Photo(QMainWindow):
             y_offset = (pixmap.height() - min_side) // 2
             cropped_pixmap = pixmap.copy(x_offset, y_offset, min_side, min_side)
             # Ruota l'immagine
-            if self.rotation_angle != 0:  # If the image needs to be rotated
-                transform = QTransform().rotate(self.rotation_angle)  # Create a transform with the rotation angle
-                cropped_pixmap = cropped_pixmap.transformed(transform)  # Apply the rotation to the cropped_pixmap instead
+            if self.rotation_angle != 0: 
+                transform = QTransform().rotate(self.rotation_angle)  # Crea un transform con i gradi di rotazione (90)
+                cropped_pixmap = cropped_pixmap.transformed(transform)  # Applica la rotazione all'immagine ridimensionata
             # Scala l'immagine per adattarla alla finestra solo se necessario
             if cropped_pixmap.width() > size or cropped_pixmap.height() > size:
                 scaled_pixmap = cropped_pixmap.scaled(size, size, aspectRatioMode=Qt.AspectRatioMode.KeepAspectRatio)
             else:
-                scaled_pixmap = cropped_pixmap
+                scaled_pixmap = cropped_pixmap # L'immagine visualizzata e' quella ritagliata
             self.image_label.setPixmap(scaled_pixmap) # Imposta l'immagine nell'etichetta
             self.image_label.setFixedSize(size, size)  # Mantieni l'immagine quadrata
-            # Aggiorna i commenti e i like
             self.comment_box.setPlainText(self.comments.get(self.image_paths[self.current_index], ""))  # Aggiorna i commenti
             self.center_text_in_comment_box()  # Centra il testo nel QTextEdit
             self.like_btn.setIcon(QIcon("icons/heart_filled.png") if self.likes[self.current_index] else QIcon("icons/heart_empty.png")) # Aggiorna l'icona del like
             self.favorite_check.setChecked(self.favorites[self.current_index]) # Aggiorna la casella di selezione preferiti
             self.update_image_details() # Aggiorna i dettagli dell'immagine
-
             filename = os.path.basename(self.image_paths[self.current_index])  # Ottieni solo il nome del file
             self.setWindowTitle(f"Photo - {filename}")  # Imposta il titolo della finestra con il nome del file
 
@@ -207,8 +207,8 @@ class Photo(QMainWindow):
         if self.is_image_fullscreen: # Se l'immagine è in modalità fullscreen
             self.is_image_fullscreen = False # Disattiva la modalità fullscreen
             self.showNormal()  # Torna alla modalità finestra normale
-            self.comment_box.show()  # Mostra i commenti
-            self.comment_input.show()  # Mostra la casella di input commenti
+            self.comment_box.show()  # Mostra la descrizione
+            self.comment_input.show()  # Mostra la casella di input descrizioni
             self.favorite_check.show()  # Mostra la checkbox per preferiti
             self.layout.setContentsMargins(10, 10, 10, 10)  # Ripristina i margini
             self.setWindowState(Qt.WindowState.WindowNoState)  # Ripristina la finestra a normale
@@ -220,8 +220,8 @@ class Photo(QMainWindow):
             self.dwn_btn.hide()  # Nascondi il pulsante download
             self.del_btn.hide()  # Nascondi il pulsante delete
             self.print_btn.hide()  # Nascondi il pulsante print
-            self.comment_box.hide()  # Nascondi i commenti
-            self.comment_input.hide()  # Nascondi la casella di input commenti
+            self.comment_box.hide()  # Nascondi la descrizione
+            self.comment_input.hide()  # Nascondi la casella di input descrizione
             self.favorite_check.hide()  # Nascondi la checkbox per preferiti
             self.layout.setContentsMargins(0, 0, 0, 0)  # Rimuovi i margini
 
@@ -243,14 +243,12 @@ class Photo(QMainWindow):
 
     def center_text_in_comment_box(self):
         cursor = self.comment_box.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.Start)  # Move cursor to the start of the document
-        cursor.movePosition(QTextCursor.MoveOperation.End, QTextCursor.MoveMode.KeepAnchor)  # Select the entire document
+        cursor.movePosition(QTextCursor.MoveOperation.Start)  # Posizionamento all'inizio del documento
+        cursor.movePosition(QTextCursor.MoveOperation.End, QTextCursor.MoveMode.KeepAnchor)  # Selezione dell'intero documento
         format = QTextBlockFormat()
-        format.setAlignment(Qt.AlignmentFlag.AlignCenter)  # Set alignment to center
-        cursor.mergeBlockFormat(format)
-        # Deselect the text by moving the cursor to the end without selecting
-        cursor.movePosition(QTextCursor.MoveOperation.End)        
-        # Set the cursor back to the QTextEdit
+        format.setAlignment(Qt.AlignmentFlag.AlignCenter)  # Imposta allineamento al centro
+        cursor.mergeBlockFormat(format) # Deseleziona il testo spostandoti alla fine senza selezionare
+        cursor.movePosition(QTextCursor.MoveOperation.End) # Riposizionati in QTextEdit       
         self.comment_box.setTextCursor(cursor)
 
     def add_comment(self):
@@ -258,7 +256,6 @@ class Photo(QMainWindow):
         if not self.image_paths:  # Se la lista è vuota
             self.show_alert("Errore: Nessuna immagine caricata!")
             return
-
         if not comment.strip():  # Se il commento è vuoto o solo spazi
             self.show_alert("Errore: Il commento non può essere vuoto!")
             return
@@ -270,57 +267,49 @@ class Photo(QMainWindow):
 
     def toggle_favorite(self):
         if self.image_paths:
-            # Update the favorite status for the current image
-            self.favorites[self.current_index] = self.favorite_check.isChecked()
-            # Add or remove the current image from the selected_images list
-            current_image = self.image_paths[self.current_index]
+            self.favorites[self.current_index] = self.favorite_check.isChecked() # Aggiorna lo stato del favorito dell'immagine corrente
+            current_image = self.image_paths[self.current_index] # Aggiungi o rimuovi l'immagine corrente alla lista delle foto selzionate
             if self.favorite_check.isChecked():
                 if current_image not in self.selected_images:
                     self.selected_images.append(current_image)
             else:
                 if current_image in self.selected_images:
                     self.selected_images.remove(current_image)
-            # Update the status bar message
-            self.status_bar.showMessage(f"Immagini selezionate: {len(self.selected_images)}")
+            self.status_bar.showMessage(f"Immagini selezionate: {len(self.selected_images)}") # Aggiorna lo status bar
 
     def update_ui(self): # Aggiorna l'interfaccia quando si cambia immagine
         if self.image_paths:
-            self.image_label.setPixmap(QPixmap(self.image_paths[self.current_index]))  
-
+            self.image_label.setPixmap(QPixmap(self.image_paths[self.current_index]))
             # Controlla se l'immagine è nei preferiti e aggiorna la checkbox
             self.favorite_check.blockSignals(True)  # Evita attivazione del segnale mentre aggiorniamo lo stato
             self.favorite_check.setChecked(self.favorites.get(self.current_index, False))
             self.favorite_check.blockSignals(False)  # Riattiva i segnali dopo l'aggiornamento
 
     def download_images(self):
-        # If no images are selected, download the currently displayed image
+        # Se nessun'immagine è stata selezionata, scarica quella visualizzata
         if not self.selected_images:
             if not self.image_paths:
                 QMessageBox.warning(self, "Attenzione", "Nessuna immagine da scaricare.")
                 return
-            # Use the current image as the only image to download
-            images_to_download = [self.image_paths[self.current_index]]
+            images_to_download = [self.image_paths[self.current_index]] # Usa l'immagine corrente come quella da scaricare
         else:
             images_to_download = self.selected_images
-        # If only one image is being downloaded, save it directly without zipping
+        # Se l'immagine è una sola, salvala senza zippare
         if len(images_to_download) == 1:
             image_path = images_to_download[0]
-            # Ask the user where to save the image
             save_path, _ = QFileDialog.getSaveFileName(
                 self,
                 "Salva Immagine",
                 os.path.basename(image_path),  # Default filename
-                "Images (*.png *.jpg *.jpeg);;All Files (*)"            )
-            
+                "Images (*.png *.jpg *.jpeg);;All Files (*)"           
+                )            
             if save_path:
                 try:
-                    shutil.copy(image_path, save_path)  # Copy the image to the selected location
+                    shutil.copy(image_path, save_path)
                     QMessageBox.information(self, "Download completato", f"Immagine salvata in:\n{save_path}")
                 except Exception as e:
-                    QMessageBox.critical(self, "Errore", f"Impossibile salvare l'immagine: {str(e)}")
-        
-        else:  # If multiple images are selected, zip them
-            # Ask the user where to save the ZIP file
+                    QMessageBox.critical(self, "Errore", f"Impossibile salvare l'immagine: {str(e)}")        
+        else:  # Se le immagini sono molteplici, zippale
             save_path, _ = QFileDialog.getSaveFileName(
                 self,
                 "Salva Immagini come ZIP",
@@ -328,44 +317,106 @@ class Photo(QMainWindow):
                 "ZIP Files (*.zip);;All Files (*)"
             )            
             if save_path:
-                # Create a temporary directory to store the images before zipping
+                # Crea una dir temporanea per immagazzinare le foto prima di zipparle
                 temp_dir = tempfile.mkdtemp()                
                 try:
-                    # Copy selected images to the temporary directory                
+                    # Copia le immagini selezionate alla dir temporanea                
                     for i, image_path in enumerate(images_to_download):
                         shutil.copy(image_path, os.path.join(temp_dir, f"image_{i+1}{os.path.splitext(image_path)[1]}"))                    
-                    # Create a ZIP file
+                    # Crea un file zip
                     with zipfile.ZipFile(save_path, 'w') as zipf:
                         for root, dirs, files in os.walk(temp_dir):
                             for file in files:
-                                zipf.write(os.path.join(root, file), os.path.basename(file))
-                    
-                    QMessageBox.information(self, "Download completato", f"Immagini salvate in:\n{save_path}")
-                
+                                zipf.write(os.path.join(root, file), os.path.basename(file))                    
+                    QMessageBox.information(self, "Download completato", f"Immagini salvate in:\n{save_path}")                
                 except Exception as e:
                     QMessageBox.critical(self, "Errore", f"Impossibile creare il file ZIP: {str(e)}")                
                 finally:
-                    # Clean up the temporary directory                
+                    # Ripulisci dir temporanea               
                     shutil.rmtree(temp_dir)
 
+    def delete_images(self):
+        # Se non ci sono molteplici immagini selezionate, elimina la visualizzata
+        if not self.selected_images:
+            if not self.image_paths:
+                QMessageBox.warning(self, "Attenzione", "Nessuna immagine da eliminare.")
+                return
+            images_to_delete = [self.image_paths[self.current_index]]
+        else:
+            images_to_delete = self.selected_images.copy()
+        # Conferma eliminazione
+        if len(images_to_delete) == 1:
+            msg = f"Sei sicuro di voler eliminare l'immagine selezionata?\n\n{os.path.basename(images_to_delete[0])}"
+        else:
+            msg = f"Sei sicuro di voler eliminare {len(images_to_delete)} immagini selezionate?"
+        reply = QMessageBox.question(
+            self,
+            "Conferma eliminazione",
+            msg,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        # Elimina
+        deleted_count = 0
+        failed_deletions = []
+        for image_path in images_to_delete:
+            try:
+                # # Rimuovi da filesystem
+                # os.remove(image_path)                
+                # Rimuovi da liste interne se esistono
+                if image_path in self.image_paths:
+                    index = self.image_paths.index(image_path)
+                    del self.image_paths[index]
+                    del self.likes[index]
+                    del self.favorites[index]
+                    if image_path in self.comments:
+                        del self.comments[image_path]                    
+                    # Aggiorna l'indice se neccessario
+                    if self.current_index >= len(self.image_paths):
+                        self.current_index = max(0, len(self.image_paths) - 1)                
+                deleted_count += 1
+            except Exception as e:
+                failed_deletions.append((os.path.basename(image_path), str(e)))
+        # Mostra risultati
+        if failed_deletions:
+            error_msg = "\n".join([f"{name}: {error}" for name, error in failed_deletions])
+            QMessageBox.warning(
+                self,
+                "Eliminazione parziale",
+                f"{deleted_count} immagini eliminate con successo.\n\nErrori:\n{error_msg}"
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "Operazione completata",
+                f"{deleted_count} immagini eliminate con successo."
+            )
+        # Ripulisci selezione
+        self.selected_images.clear()
+        self.status_bar.showMessage(f"Immagini selezionate: 0")        
+        # Aggiorna la vista
+        if self.image_paths:
+            self.update_display()
+        else:
+            self.image_label.clear()
+            self.comment_box.clear()
+            self.setWindowTitle("Photo")
+    
     def update_image_details(self):
         if self.image_paths:
             current_image_path = self.image_paths[self.current_index]
             pixmap = QPixmap(current_image_path)
-
             # Ottieni dimensioni dell'immagine in pixel
             width = pixmap.width()
             height = pixmap.height()
-
             # Ottieni la dimensione del file in KB o MB
             file_size = os.path.getsize(current_image_path)  # Dimensione in byte
             file_size_kb = file_size / 1024  # Converti in KB
             file_size_str = f"{file_size_kb:.2f} KB" if file_size_kb < 1024 else f"{file_size_kb/1024:.2f} MB"
-
             # Aggiorna l'etichetta con le informazioni
             self.status_bar.showMessage(f"Dimensioni: {width}x{height} px | Peso: {file_size_str}")
-        else:
-            self.image_details_label.setText("Nessuna immagine selezionata")
 
     def show_alert(self, message): # Metodo per mostrare un messaggio di avviso
         alert = QMessageBox()
