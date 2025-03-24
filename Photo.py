@@ -68,7 +68,7 @@ class Photo(QMainWindow):
         self.prev_btn.setFixedHeight(50)
         # Pulsante Fullscreen per l'immagine
         self.fullscreen_img_btn = QPushButton()  # Crea un pulsante per attivare/disattivare la modalità fullscreen
-        self.fullscreen_img_btn.setIcon(QIcon("icons/fullscreen.png"))  # Usa un'icona di fullscreen
+        self.fullscreen_img_btn.setIcon(QIcon("icons/fullscreen_white.png" if self.is_dark_theme() else "icons/fullscreen.png"))        
         self.fullscreen_img_btn.setFixedSize(50, 50)  # Imposta la dimensione del pulsante
         self.fullscreen_img_btn.setStyleSheet("padding: 5px;")
         self.fullscreen_img_btn.clicked.connect(self.toggle_image_fullscreen)  # Collega il pulsante al metodo toggle_image_fullscreen
@@ -88,7 +88,7 @@ class Photo(QMainWindow):
 
         # Pulsante Like
         self.like_btn = QPushButton()
-        self.like_btn.setIcon(QIcon("icons/heart_empty.png"))
+        self.like_btn.setIcon(QIcon("icons/heart_empty_white.png" if self.is_dark_theme() else "icons/heart_empty.png"))        
         self.like_btn.setFixedSize(50, 50)
         self.like_btn.setStyleSheet("padding: 5px;")
         btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)  # Allinea il pulsante a sinistra
@@ -97,7 +97,7 @@ class Photo(QMainWindow):
 
         # Pulsante Ruota
         self.rotate_btn = QPushButton()
-        self.rotate_btn.setIcon(QIcon("icons/rotate.png"))
+        self.rotate_btn.setIcon(QIcon("icons/rotate_white.png" if self.is_dark_theme() else "icons/rotate.png"))
         self.rotate_btn.setFixedSize(50, 50)
         self.rotate_btn.setStyleSheet("padding: 5px;")
         btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)  # Allinea il pulsante a sinistra
@@ -106,7 +106,7 @@ class Photo(QMainWindow):
 
         # Pulsante Download
         self.dwn_btn = QPushButton()
-        self.dwn_btn.setIcon(QIcon("icons/download.png"))
+        self.dwn_btn.setIcon(QIcon("icons/download_white.png" if self.is_dark_theme() else "icons/download.png"))        
         self.dwn_btn.setFixedSize(50, 50)
         self.dwn_btn.setStyleSheet("padding: 5px;")
         btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
@@ -115,7 +115,7 @@ class Photo(QMainWindow):
 
         # Pulsante Elimina
         self.del_btn = QPushButton()
-        self.del_btn.setIcon(QIcon("icons/delete.png"))
+        self.del_btn.setIcon(QIcon("icons/delete_white.png" if self.is_dark_theme() else "icons/delete.png"))
         self.del_btn.setFixedSize(50, 50)
         self.del_btn.setStyleSheet("padding: 5px;")
         btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
@@ -124,7 +124,7 @@ class Photo(QMainWindow):
 
         # Pulsante Stampa
         self.print_btn = QPushButton()
-        self.print_btn.setIcon(QIcon("icons/print.png"))
+        self.print_btn.setIcon(QIcon("icons/print_white.png" if self.is_dark_theme() else "icons/print.png"))
         self.print_btn.setFixedSize(50, 50)
         self.print_btn.setStyleSheet("padding: 5px;")
         btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
@@ -150,6 +150,7 @@ class Photo(QMainWindow):
         self.favorites = {}  # Lista di immagini preferite
         self.rotation_angle = 0  # Variabile per memorizzare l'angolo di rotazione dell'immagine
         self.selected_images = []  # Lista per tenere traccia delle immagini selezionate
+        self.update_icons()
 
 # METODI -------------------------------------------------------------------------------------------------------
     
@@ -194,7 +195,6 @@ class Photo(QMainWindow):
             self.image_label.setFixedSize(size, size)  # Mantieni l'immagine quadrata
             self.comment_box.setPlainText(self.comments.get(self.image_paths[self.current_index], ""))  # Aggiorna i commenti
             self.center_text_in_comment_box()  # Centra il testo nel QTextEdit
-            self.like_btn.setIcon(QIcon("icons/heart_filled.png") if self.likes[self.current_index] else QIcon("icons/heart_empty.png")) # Aggiorna l'icona del like
             self.favorite_check.setChecked(self.favorites.get(self.current_index, False)) # Aggiorna la casella di selezione preferiti
             self.update_image_details() # Aggiorna i dettagli dell'immagine
             filename = os.path.basename(self.image_paths[self.current_index])  # Ottieni solo il nome del file
@@ -244,6 +244,8 @@ class Photo(QMainWindow):
     def toggle_like(self): # Metodo per aggiungere/rimuovere un like
         if self.image_paths:
             self.likes[self.current_index] = not self.likes[self.current_index]
+            icon = QIcon("icons/heart_filled_white.png" if self.is_dark_theme() else "icons/heart_filled.png") if self.likes[self.current_index] else QIcon("icons/heart_empty_white.png" if self.is_dark_theme() else "icons/heart_empty.png")
+            self.like_btn.setIcon(icon)
             self.update_display()
 
     def adjust_textedit_height(self): # Metodo per regolare l'altezza della casella di testo in base al contenuto
@@ -463,12 +465,14 @@ class Photo(QMainWindow):
         alert.exec()  # Mostra la finestra di dialogo
 
     def set_light_theme(self):
-        """Imposta il tema chiaro"""
-        self.setStyleSheet("")  # Resetta lo stile (tema di sistema)
-        self.update_display()  # Aggiorna l'interfaccia
+        self.setStyleSheet("")        
+        app = QApplication.instance()
+        app.setPalette(app.style().standardPalette())
+        self.update_icons()
+        self.update_display()
 
     def set_dark_theme(self):
-        """Imposta il tema scuro con QSS (Qt Style Sheets)"""
+        """Set dark theme with custom stylesheet"""
         dark_stylesheet = """
             QMainWindow, QWidget {
                 background-color: #2D2D2D;
@@ -511,7 +515,28 @@ class Photo(QMainWindow):
             }
         """
         self.setStyleSheet(dark_stylesheet)
-        self.update_display()  # Aggiorna l'interfaccia
+        self.update_icons()
+        self.update_display()
+
+    def update_icons(self):
+        is_dark = self.is_dark_theme()    
+        if self.image_paths and len(self.likes) > self.current_index:
+            like_state = "_filled" if self.likes[self.current_index] else "_empty"
+            self.like_btn.setIcon(QIcon(f"icons/heart{like_state}_white.png" if is_dark else f"icons/heart{like_state}.png"))
+        else:
+            self.like_btn.setIcon(QIcon("icons/heart_empty_white.png" if is_dark else "icons/heart_empty.png"))      
+        btn_icons = {
+            self.rotate_btn: "rotate",
+            self.dwn_btn: "download",
+            self.del_btn: "delete",
+            self.print_btn: "print",
+            self.fullscreen_img_btn: "fullscreen"
+        }        
+        for btn, icon_name in btn_icons.items():
+            btn.setIcon(QIcon(f"icons/{icon_name}_white.png" if is_dark else f"icons/{icon_name}.png"))
+
+    def is_dark_theme(self):
+        return self.palette().window().color().lightness() < 128
 
 
 
