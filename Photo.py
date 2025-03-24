@@ -149,11 +149,15 @@ class Photo(QMainWindow):
     def load_images(self): # Metodo per caricare le immagini
         files, _ = QFileDialog.getOpenFileNames(self, "Seleziona Immagini", "", "Images (*.png *.jpg *.jpeg)")
         if files: # Se sono state selezionate delle immagini
-            self.image_paths = files # Aggiorna la lista di percorsi delle immagini
-            self.current_index = 0 # Imposta l'indice dell'immagine corrente a 0
-            self.comments = {img: "" for img in self.image_paths} # Inizializza le descrizioni per le immagini
-            self.likes = [False] * len(self.image_paths) # Inizializza i like per le immagini
-            self.favorites = [False] * len(self.image_paths) # Inizializza le immagini preferite
+            for file in files:
+                if file not in self.image_paths:
+                    self.image_paths.append(file) # Aggiunge nuove immagini alle esistenti, evitando duplicati
+                    self.likes.append(False)  # Aggiungi Like
+                    self.comments[file] = ""  # Aggiungi stato di descrizione
+                    self.favorites[len(self.image_paths)-1] = False # Inizializza stato di preferito
+          
+            # Se questo era il primo caricamento, aggiorna indice a 0
+            self.current_index = len(self.image_paths) - 1
             self.update_display() # Aggiorna l'interfaccia con l'immagine corrente
 
     def rotate_image(self): # Metodo per ruotare l'immagine di 90 gradi
@@ -184,7 +188,7 @@ class Photo(QMainWindow):
             self.comment_box.setPlainText(self.comments.get(self.image_paths[self.current_index], ""))  # Aggiorna i commenti
             self.center_text_in_comment_box()  # Centra il testo nel QTextEdit
             self.like_btn.setIcon(QIcon("icons/heart_filled.png") if self.likes[self.current_index] else QIcon("icons/heart_empty.png")) # Aggiorna l'icona del like
-            self.favorite_check.setChecked(self.favorites[self.current_index]) # Aggiorna la casella di selezione preferiti
+            self.favorite_check.setChecked(self.favorites.get(self.current_index, False)) # Aggiorna la casella di selezione preferiti
             self.update_image_details() # Aggiorna i dettagli dell'immagine
             filename = os.path.basename(self.image_paths[self.current_index])  # Ottieni solo il nome del file
             self.setWindowTitle(f"Photo - {filename}")  # Imposta il titolo della finestra con il nome del file
