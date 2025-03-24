@@ -36,6 +36,13 @@ class Photo(QMainWindow):
         exit_action = QAction("Esci", self)  # Crea un'opzione per uscire dall'applicazione
         exit_action.triggered.connect(self.close)  # Collega l'opzione al metodo close
         file_menu.addAction(exit_action)  # Aggiungi l'opzione al menù
+        file_view = menubar.addMenu("Aspetto")
+        light_action = QAction("Tema chiaro", self) # Crea un'opzione per scegliere il tema chiaro
+        light_action.triggered.connect(self.set_light_theme)
+        file_view.addAction(light_action) # Aggiungi l'opzione al menù
+        dark_action = QAction("Tema scuro", self) # Crea un'opzione per scegliere il tema scuro
+        dark_action.triggered.connect(self.set_dark_theme)
+        file_view.addAction(dark_action) # Aggiungi l'opzione al menù
 
         # Etichetta immagine
         self.image_label = QLabel(self)  # Crea un'etichetta per l'immagine
@@ -454,6 +461,57 @@ class Photo(QMainWindow):
         alert.setText(message)
         alert.setStandardButtons(QMessageBox.StandardButton.Ok)
         alert.exec()  # Mostra la finestra di dialogo
+
+    def set_light_theme(self):
+        """Imposta il tema chiaro"""
+        self.setStyleSheet("")  # Resetta lo stile (tema di sistema)
+        self.update_display()  # Aggiorna l'interfaccia
+
+    def set_dark_theme(self):
+        """Imposta il tema scuro con QSS (Qt Style Sheets)"""
+        dark_stylesheet = """
+            QMainWindow, QWidget {
+                background-color: #2D2D2D;
+                color: #FFFFFF;
+            }
+            QPushButton {
+                background-color: #3A3A3A;
+                border: 1px solid #555;
+                color: #FFFFFF;
+                padding: 5px;
+            }
+            QPushButton:hover {
+                background-color: #4A4A4A;
+            }
+            QLineEdit, QTextEdit {
+                background-color: #3A3A3A;
+                color: #FFFFFF;
+                border: 1px solid #555;
+            }
+            QCheckBox {
+                color: #FFFFFF;
+            }
+            QMenuBar {
+                background-color: #2D2D2D;
+                color: #FFFFFF;
+            }
+            QMenuBar::item:selected {
+                background-color: #4A4A4A;
+            }
+            QMenu {
+                background-color: #3A3A3A;
+                color: #FFFFFF;
+            }
+            QMenu::item:selected {
+                background-color: #4A4A4A;
+            }
+            QStatusBar {
+                background-color: #2D2D2D;
+                color: #FFFFFF;
+            }
+        """
+        self.setStyleSheet(dark_stylesheet)
+        self.update_display()  # Aggiorna l'interfaccia
 
 
 
