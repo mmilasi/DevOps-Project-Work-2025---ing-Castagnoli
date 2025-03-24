@@ -5,7 +5,7 @@ import shutil
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, 
                              QWidget, QFileDialog, QLineEdit, QTextEdit, QCheckBox, QHBoxLayout, 
                              QStatusBar, QSizePolicy, QFileDialog, QMessageBox)
-from PyQt6.QtGui import QAction, QPixmap, QIcon, QKeyEvent, QTransform, QTextCursor, QTextBlockFormat
+from PyQt6.QtGui import QAction, QPixmap, QIcon, QKeyEvent, QTransform, QTextCursor, QTextBlockFormat, QPainter, QPageLayout
 from PyQt6.QtCore import Qt
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
 
@@ -121,7 +121,7 @@ class Photo(QMainWindow):
         self.print_btn.setFixedSize(50, 50)
         self.print_btn.setStyleSheet("padding: 5px;")
         btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        # collegare con metodo print_images
+        self.print_btn.clicked.connect(self.print_image)  #  Collega il pulsante al metodo print_image
         btn_act_layout.addWidget(self.print_btn)  # Aggiungi il pulsante alla barra dei pulsanti
 
         # Casella di input per nuova descrizione
@@ -403,6 +403,31 @@ class Photo(QMainWindow):
             self.image_label.clear()
             self.comment_box.clear()
             self.setWindowTitle("Photo")
+
+    def print_image(self):
+        if not self.image_paths:
+            QMessageBox.warning(self, "Attenzione", "Nessuna immagine da stampare.")
+            return
+        printer = QPrinter(QPrinter.PrinterMode.HighResolution) # Crea stampa e dialogo di stampa
+        print_dialog = QPrintDialog(printer, self)
+        printer.setPageOrientation(QPageLayout.Orientation.Portrait) # Imposta valori di default della stampa
+        printer.setFullPage(True)        
+        if print_dialog.exec() == QPrintDialog.DialogCode.Accepted:
+            try:
+                pixmap = QPixmap(self.image_paths[self.current_index]) # Carica immagine corrente
+                painter = QPainter() # Crea painter per gestire la stampa
+                painter.begin(printer)                
+                page_rect = printer.pageRect(QPrinter.Unit.DevicePixel) # Calcola dimensioni per mantenere il rapporto d'immagine
+                pixmap_rect = pixmap.rect()
+                # Scala la pixmap per addattarsi alla pagina mentre si mantiene il rapporto
+                scale = min(page_rect.width() / pixmap_rect.width(),
+                        page_rect.height() / pixmap_rect.height())
+                painter.scale(scale, scale)
+                painter.drawPixmap(0, 0, pixmap) # Imposta immagine centrata
+                painter.end()                
+                QMessageBox.information(self, "Stampa", "Immagine inviata alla stampante con successo!")
+            except Exception as e:
+                QMessageBox.critical(self, "Errore", f"Errore durante la stampa:\n{str(e)}")
     
     def update_image_details(self):
         if self.image_paths:
