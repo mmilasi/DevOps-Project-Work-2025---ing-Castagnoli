@@ -466,8 +466,6 @@ class Photo(QMainWindow):
 
     def set_light_theme(self):
         self.setStyleSheet("")        
-        app = QApplication.instance()
-        app.setPalette(app.style().standardPalette())
         self.update_icons()
         self.update_display()
 
