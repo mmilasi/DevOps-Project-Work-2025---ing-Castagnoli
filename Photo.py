@@ -4,14 +4,15 @@ import tempfile
 import shutil
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, 
                              QWidget, QFileDialog, QLineEdit, QTextEdit, QCheckBox, QHBoxLayout, 
-                             QStatusBar, QSizePolicy, QFileDialog, QMessageBox)
-from PyQt6.QtGui import QAction, QPixmap, QIcon, QKeyEvent, QTransform, QTextCursor, QTextBlockFormat, QPainter, QPageLayout
-from PyQt6.QtCore import Qt
+                             QStatusBar, QSizePolicy, QFileDialog, QMessageBox, QScrollArea)
+from PyQt6.QtGui import QAction, QPixmap, QIcon, QKeyEvent, QTransform, QTextCursor, QTextBlockFormat, QPainter, QPageLayout, QWheelEvent
+from PyQt6.QtCore import Qt, QPointF, QTimer
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
 
 class Photo(QMainWindow):
     def __init__(self):
         super().__init__()
+        # INIT -----------------------------------------------------------------------------------------------------
         self.setWindowTitle("Photo")  # Imposta il titolo della finestra
         self.setGeometry(100, 100, 450, 700)  # Imposta la dimensione della finestra
 
@@ -19,8 +20,6 @@ class Photo(QMainWindow):
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         self.layout = QVBoxLayout(self.central_widget)  # Imposta il layout principale UNA SOLA VOLTA
-
-        # Elementi dell'interfaccia
         self.is_image_fullscreen = False  # Imposta la modalità fullscreen dell'immagine a false di default
 
         # Barra di stato
@@ -45,11 +44,16 @@ class Photo(QMainWindow):
         file_view.addAction(dark_action) # Aggiungi l'opzione al menù
 
         # Etichetta immagine
-        self.image_label = QLabel(self)  # Crea un'etichetta per l'immagine
-        self.image_label.setScaledContents(True)  # Ridimensiona l'immagine per adattarla alla finestra
-        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)  # Allinea l'immagine al centro
-        self.image_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)  # Permetti l'espansione dell'etichetta
-        self.layout.addWidget(self.image_label, alignment=Qt.AlignmentFlag.AlignCenter)  # Aggiungi l'etichetta all'interfaccia
+        # Crea area di scorrimento (per zoom)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Crea l'etichetta per l'immagine, figlia dell'area di scorrimento
+        self.image_label = QLabel()
+        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.scroll_area.setWidget(self.image_label)
+        self.layout.addWidget(self.scroll_area)  # Aggiungi area di scorrimento al layout
 
         # Casella di testo per descrizioni
         self.comment_box = QTextEdit()  # Crea una casella di testo per le descrizioni delle foto
@@ -61,86 +65,102 @@ class Photo(QMainWindow):
 
         # Pulsanti per la navigazione
         btn_layout = QHBoxLayout()  # Crea un layout ORIZZONTALE per i pulsanti di navigazione
+        self.layout.addLayout(btn_layout)  # Aggiungi il layout dei pulsanti di navigazione all'interfaccia
         # Pulsante nav sinistra
-        self.prev_btn = QPushButton("←")  # Crea un pulsante per l'immagine precedente
+        self.prev_btn = QPushButton("←")
         self.prev_btn.setStyleSheet("padding: 5px;")
         self.prev_btn.clicked.connect(self.prev_image)
         self.prev_btn.setFixedHeight(50)
-        # Pulsante Fullscreen per l'immagine
-        self.fullscreen_img_btn = QPushButton()  # Crea un pulsante per attivare/disattivare la modalità fullscreen
-        self.fullscreen_img_btn.setIcon(QIcon("icons/fullscreen_white.png" if self.is_dark_theme() else "icons/fullscreen.png"))        
-        self.fullscreen_img_btn.setFixedSize(50, 50)  # Imposta la dimensione del pulsante
-        self.fullscreen_img_btn.setStyleSheet("padding: 5px;")
-        self.fullscreen_img_btn.clicked.connect(self.toggle_image_fullscreen)  # Collega il pulsante al metodo toggle_image_fullscreen
+        # Pulsante Zoom Out
+        self.zoom_out_btn = QPushButton()
+        self.zoom_out_btn.setIcon(QIcon("icons/zoomout_white.png" if self.is_dark_theme() else "icons/zoomout.png"))        
+        self.zoom_out_btn.setFixedSize(50, 50)
+        self.zoom_out_btn.setStyleSheet("padding: 5px;")
+        self.zoom_out_btn.clicked.connect(self.zoom_out)      
+        # Pulsante Reset Zoom
+        self.zoom_reset_btn = QPushButton("1:1")
+        self.zoom_reset_btn.setFixedSize(50, 50)
+        self.zoom_reset_btn.setStyleSheet("padding: 5px;")
+        self.zoom_reset_btn.clicked.connect(self.reset_zoom)
+        # Pulsante Zoom In
+        self.zoom_in_btn = QPushButton()
+        self.zoom_in_btn.setIcon(QIcon("icons/zoomin_white.png" if self.is_dark_theme() else "icons/zoomin.png"))        
+        self.zoom_in_btn.setFixedSize(50, 50)
+        self.zoom_in_btn.setStyleSheet("padding: 5px;")
+        self.zoom_in_btn.clicked.connect(self.zoom_in)   
         # Pulsante nav destra
-        self.next_btn = QPushButton("→")  # Crea un pulsante per l'immagine successiva
+        self.next_btn = QPushButton("→")
         self.next_btn.setFixedHeight(50)
         self.next_btn.setStyleSheet("padding: 5px;")
-        self.next_btn.clicked.connect(self.next_image)  # Collega il pulsante al metodo next_image
-        btn_layout.addWidget(self.prev_btn)  # Aggiungi il pulsante precedente al layout
-        btn_layout.addWidget(self.fullscreen_img_btn)  # Aggiungi il pulsante fullscreen al layout
-        btn_layout.addWidget(self.next_btn)  # Aggiungi il pulsante successivo al layout
-        self.layout.addLayout(btn_layout)  # Aggiungi il layout dei pulsanti di navigazione all'interfaccia
+        self.next_btn.clicked.connect(self.next_image)
+        # Aggiungi i pulsanti al layout
+        btn_layout.addWidget(self.prev_btn)
+        btn_layout.addWidget(self.zoom_out_btn)
+        btn_layout.addWidget(self.zoom_reset_btn)
+        btn_layout.addWidget(self.zoom_in_btn)        
+        btn_layout.addWidget(self.next_btn)
 
         # Layout per i pulsanti di azione
-        btn_act_layout = QHBoxLayout()  # Crea un layout ORIZZONTALE per i pulsanti di azione
+        btn_act_layout = QHBoxLayout()
         self.layout.addLayout(btn_act_layout)  # Aggiungi il layout dei pulsanti di azione all'interfaccia
-
         # Pulsante Like
         self.like_btn = QPushButton()
         self.like_btn.setIcon(QIcon("icons/heart_empty_white.png" if self.is_dark_theme() else "icons/heart_empty.png"))        
         self.like_btn.setFixedSize(50, 50)
         self.like_btn.setStyleSheet("padding: 5px;")
-        btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)  # Allinea il pulsante a sinistra
-        self.like_btn.clicked.connect(self.toggle_like)  # Collega il pulsante al metodo toggle_like
-        btn_act_layout.addWidget(self.like_btn)  # Aggiungi il pulsante alla barra dei pulsanti
-
+        btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.like_btn.clicked.connect(self.toggle_like)
         # Pulsante Ruota
         self.rotate_btn = QPushButton()
         self.rotate_btn.setIcon(QIcon("icons/rotate_white.png" if self.is_dark_theme() else "icons/rotate.png"))
         self.rotate_btn.setFixedSize(50, 50)
         self.rotate_btn.setStyleSheet("padding: 5px;")
-        btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)  # Allinea il pulsante a sinistra
-        self.rotate_btn.clicked.connect(self.rotate_image)  # Collega il pulsante al metodo rotate_image
-        btn_act_layout.addWidget(self.rotate_btn)  # Aggiungi il pulsante alla barra dei pulsanti
-
+        btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.rotate_btn.clicked.connect(self.rotate_image)
+        # Pulsante Fullscreen
+        self.fullscreen_img_btn = QPushButton()
+        self.fullscreen_img_btn.setIcon(QIcon("icons/fullscreen_white.png" if self.is_dark_theme() else "icons/fullscreen.png"))        
+        self.fullscreen_img_btn.setFixedSize(50, 50)
+        self.fullscreen_img_btn.setStyleSheet("padding: 5px;")
+        self.fullscreen_img_btn.clicked.connect(self.toggle_image_fullscreen)
         # Pulsante Download
         self.dwn_btn = QPushButton()
         self.dwn_btn.setIcon(QIcon("icons/download_white.png" if self.is_dark_theme() else "icons/download.png"))        
         self.dwn_btn.setFixedSize(50, 50)
         self.dwn_btn.setStyleSheet("padding: 5px;")
-        btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.dwn_btn.clicked.connect(self.download_images)  # Collega il pulsante al metodo download_images
-        btn_act_layout.addWidget(self.dwn_btn)  # Aggiungi il pulsante alla barra dei pulsanti
-
+        btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.dwn_btn.clicked.connect(self.download_images)
         # Pulsante Elimina
         self.del_btn = QPushButton()
         self.del_btn.setIcon(QIcon("icons/delete_white.png" if self.is_dark_theme() else "icons/delete.png"))
         self.del_btn.setFixedSize(50, 50)
         self.del_btn.setStyleSheet("padding: 5px;")
-        btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.del_btn.clicked.connect(self.delete_images)  # Collega il pulsante al metodo delete_images
-        btn_act_layout.addWidget(self.del_btn)  # Aggiungi il pulsante alla barra dei pulsanti
-
+        btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.del_btn.clicked.connect(self.delete_images)
         # Pulsante Stampa
         self.print_btn = QPushButton()
         self.print_btn.setIcon(QIcon("icons/print_white.png" if self.is_dark_theme() else "icons/print.png"))
         self.print_btn.setFixedSize(50, 50)
         self.print_btn.setStyleSheet("padding: 5px;")
-        btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.print_btn.clicked.connect(self.print_image)  #  Collega il pulsante al metodo print_image
-        btn_act_layout.addWidget(self.print_btn)  # Aggiungi il pulsante alla barra dei pulsanti
+        btn_act_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.print_btn.clicked.connect(self.print_image)
+        # Aggiungi i pulsanti al layout
+        btn_act_layout.addWidget(self.like_btn)
+        btn_act_layout.addWidget(self.rotate_btn)
+        btn_act_layout.addWidget(self.fullscreen_img_btn)
+        btn_act_layout.addWidget(self.dwn_btn)
+        btn_act_layout.addWidget(self.del_btn)
+        btn_act_layout.addWidget(self.print_btn)
 
         # Casella di input per nuova descrizione
         self.comment_input = QLineEdit()
-        self.comment_input.setPlaceholderText("Aggiungi una descrizione...")  # Testo di esempio nella casella di input
-        self.comment_input.returnPressed.connect(self.add_comment)  # Collega la pressione del tasto Invio al metodo add_comment
-        self.layout.addWidget(self.comment_input)  # Aggiungi la casella di input all'interfaccia
-
+        self.comment_input.setPlaceholderText("Aggiungi una descrizione...")
+        self.comment_input.returnPressed.connect(self.add_comment)
+        self.layout.addWidget(self.comment_input)
         # Casella di selezione multipla
-        self.favorite_check = QCheckBox("Aggiungi alla selezione multipla")  # Crea una casella di selezione per le immagini multiple selezionate per gestirle
+        self.favorite_check = QCheckBox("Aggiungi alla selezione multipla")
         self.favorite_check.stateChanged.connect(self.toggle_favorite)
-        self.layout.addWidget(self.favorite_check)  # Aggiungi la casella di selezione multipla all'interfaccia
+        self.layout.addWidget(self.favorite_check)
 
         # Variabili di stato
         self.image_paths = []  # Lista di percorsi delle immagini
@@ -150,120 +170,240 @@ class Photo(QMainWindow):
         self.favorites = {}  # Lista di immagini preferite
         self.rotation_angle = 0  # Variabile per memorizzare l'angolo di rotazione dell'immagine
         self.selected_images = []  # Lista per tenere traccia delle immagini selezionate
+        self.zoom_factor = 1.0    # Livello zoom attuale (1.0 = 100%)
+        self.min_zoom = 0.1       # Livello zoom minimo (10%)
+        self.max_zoom = 5.0       # Livello zoom massimo (500%)
+        self.pan_start = None     # Per il movimento del mouse
+        self.original_pixmap = None  # Salva temporaneamente l'immagine zoomata
+        self.drag_start_pos = None
+        self.image_offset = QPointF(0, 0)
+        self.current_pixmap = None
+        self.dragging = False
         self.update_icons()
 
 # METODI -------------------------------------------------------------------------------------------------------
-    
-    def load_images(self): # Metodo per caricare le immagini
+    # CARICA IMMAGINI
+    def load_images(self):
         files, _ = QFileDialog.getOpenFileNames(self, "Seleziona Immagini", "", "Images (*.png *.jpg *.jpeg)")
         if files: # Se sono state selezionate delle immagini
-            for file in files:
-                if file not in self.image_paths:
-                    self.image_paths.append(file) # Aggiunge nuove immagini alle esistenti, evitando duplicati
-                    self.likes.append(False)  # Aggiungi Like
-                    self.comments[file] = ""  # Aggiungi stato di descrizione
-                    self.favorites[len(self.image_paths)-1] = False # Inizializza stato di preferito
-          
+            for file in files: # per ogni immagine 
+                if file not in self.image_paths: # se l'immagine non è nella lista
+                    self.image_paths.append(file) # aggiunge nuove immagini alle esistenti, evitando duplicati
+                    self.likes.append(False)  # aggiunge Like default
+                    self.comments[file] = ""  # aggiunge descrizione vuota
+                    self.favorites[len(self.image_paths)-1] = False # inizializza stato di preferito di default        
             # Se questo era il primo caricamento, aggiorna indice a 0
             self.current_index = len(self.image_paths) - 1
             self.update_display() # Aggiorna l'interfaccia con l'immagine corrente
-
-    def rotate_image(self): # Metodo per ruotare l'immagine di 90 gradi
+    # RUOTA IMMAGINE -------------------------------------------------------------------------------------------
+    def rotate_image(self):
         if self.image_paths:
             self.rotation_angle = (self.rotation_angle + 90) % 360  # Incrementa l'angolo di rotazione di 90 gradi
-            self.update_display()  # Visualizza l'immagine ruotata
-            
-    def update_display(self): # Metodo per aggiornare l'interfaccia con l'immagine corrente
-        if self.image_paths: # Se ci sono immagini caricate
-            size = min(self.central_widget.height(), self.central_widget.width(), 400) # Dimensione massima dell'immagine
-            pixmap = QPixmap(self.image_paths[self.current_index]) # Crea una mappa di pixel dall'immagine corrente
-            # Ritaglia l'immagine per mantenerla quadrata
+            self.update_display()  # Aggiorna l'interfaccia con l'immagine corrente
+    # AGGIORNAMENTO INTERAFCCIA IMMAGINE CORRENTE --------------------------------------------------------------      
+    def update_display(self):
+        if self.image_paths:
+            # Carica e ritaglia l'immagine originale
+            pixmap = QPixmap(self.image_paths[self.current_index])
             min_side = min(pixmap.width(), pixmap.height())
             x_offset = (pixmap.width() - min_side) // 2
             y_offset = (pixmap.height() - min_side) // 2
-            cropped_pixmap = pixmap.copy(x_offset, y_offset, min_side, min_side)
-            # Ruota l'immagine
-            if self.rotation_angle != 0: 
-                transform = QTransform().rotate(self.rotation_angle)  # Crea un transform con i gradi di rotazione (90)
-                cropped_pixmap = cropped_pixmap.transformed(transform)  # Applica la rotazione all'immagine ridimensionata
-            # Scala l'immagine per adattarla alla finestra solo se necessario
-            if cropped_pixmap.width() > size or cropped_pixmap.height() > size:
-                scaled_pixmap = cropped_pixmap.scaled(size, size, aspectRatioMode=Qt.AspectRatioMode.KeepAspectRatio)
+            self.original_pixmap = pixmap.copy(x_offset, y_offset, min_side, min_side)            
+            # in base a se è in fulscreen o meno, defnisci le dimensioni della finestra
+            if self.is_image_fullscreen:
+                display_size = min(self.screen().size().width(), self.screen().size().height())
             else:
-                scaled_pixmap = cropped_pixmap # L'immagine visualizzata e' quella ritagliata
-            self.image_label.setPixmap(scaled_pixmap) # Imposta l'immagine nell'etichetta
-            self.image_label.setFixedSize(size, size)  # Mantieni l'immagine quadrata
-            self.comment_box.setPlainText(self.comments.get(self.image_paths[self.current_index], ""))  # Aggiorna i commenti
-            self.center_text_in_comment_box()  # Centra il testo nel QTextEdit
-            self.favorite_check.setChecked(self.favorites.get(self.current_index, False)) # Aggiorna la casella di selezione preferiti
-            self.update_image_details() # Aggiorna i dettagli dell'immagine
-            filename = os.path.basename(self.image_paths[self.current_index])  # Ottieni solo il nome del file
-            self.setWindowTitle(f"Photo - {filename}")  # Imposta il titolo della finestra con il nome del file
+                display_size = min(400, min_side)            
+            # Crea versione ritagliata e scalata dell'immagine
+            scaled_pixmap = self.original_pixmap.scaled(
+                display_size, display_size,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
+            if self.rotation_angle != 0:
+                transform = QTransform().rotate(self.rotation_angle)
+                scaled_pixmap = scaled_pixmap.transformed(transform)
+            # Imposta pixmap e dimensioni
+            self.image_label.setPixmap(scaled_pixmap)
+            self.image_label.resize(scaled_pixmap.size())
+            # Aggiorna elementi UI
+            if not self.is_image_fullscreen:
+                self.comment_box.setPlainText(self.comments.get(self.image_paths[self.current_index], ""))
+                self.center_text_in_comment_box()
+                self.favorite_check.setChecked(self.favorites.get(self.current_index, False))
+            self.update_image_details() # Aggiorna l'interfaccia con l'immagine corrente
 
-    def resizeEvent(self, event): # Sovrascrive il metodo resizeEvent della finestra principale
+            filename = os.path.basename(self.image_paths[self.current_index])
+            self.setWindowTitle(f"Photo - {filename}")
+            self.status_bar.showMessage(f"Zoom: {int(self.zoom_factor * 100)}%")            
+            self.center_image()
+    def center_image(self): # Centra immagine
+        if hasattr(self, 'scroll_area') and self.image_paths:
+            # centra l'immagine quando cambia lo zoom
+            self.scroll_area.ensureVisible(
+                self.image_label.width() // 2,
+                self.image_label.height() // 2,
+                self.scroll_area.width() // 2,
+                self.scroll_area.height() // 2)
+    # RIDIMENSIONAMENTO FINESTRA -------------------------------------------------------------------------------
+    def resizeEvent(self, event):
         self.update_display()
-        super().resizeEvent(event)  # Chiama il metodo originale di QMainWindow
- 
-    def prev_image(self): # Metodo per visualizzare l'immagine precedente
+        super().resizeEvent(event)
+    # IMMAGINE PRECEDENTE, FULLSCREEN E SUCCESSIVA --------------------------------------------------------------
+    def prev_image(self):
         if self.image_paths and self.current_index > 0:
             self.current_index -= 1
             self.update_display()
-
-    def next_image(self): # Metodo per visualizzare l'immagine successiva
+    def next_image(self):
         if self.image_paths and self.current_index < len(self.image_paths) - 1:
             self.current_index += 1
             self.update_display()
+    def toggle_image_fullscreen(self):
+        if self.is_image_fullscreen:  # quando esci dalla modalità fullscreen:
+            self.is_image_fullscreen = False
+            self.showNormal()            
+            # ripristina elementi UI con transizione graduale
+            QTimer.singleShot(500, lambda: [
+                self.like_btn.show(),
+                self.rotate_btn.show(),
+                self.dwn_btn.show(),
+                self.del_btn.show(),
+                self.print_btn.show(),
+                self.comment_box.show(),
+                self.comment_input.show(),
+                self.favorite_check.show()
+            ])            
+            self.layout.setContentsMargins(10, 10, 10, 10)
+            self.setWindowState(Qt.WindowState.WindowNoState)            
+        else:  # All'entrata in modalità fullscreen
+            self.is_image_fullscreen = True
+            self.showFullScreen()            
+            # Nascondi elementi UI indesiderati
+            self.like_btn.hide()
+            self.dwn_btn.hide()
+            self.del_btn.hide()
+            self.print_btn.hide()
+            self.comment_input.hide()
+            self.favorite_check.hide()
+            self.rotate_btn.hide()            
+            self.layout.setContentsMargins(0, 0, 0, 0)            
+            self.update_display()        
+        self.update()
+    # GESTIONE DI EVENTI DEL MOUSE ------------------------------------------------------------------------------
+    def mousePressEvent(self, event):
+        if (event.button() == Qt.MouseButton.LeftButton and 
+            self.image_paths and 
+            self.zoom_factor > 1.0):
+            self.drag_start_pos = event.pos()
+            self.dragging = True
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+        super().mousePressEvent(event)
 
-    def toggle_image_fullscreen(self): # Metodo per attivare/disattivare la modalità fullscreen
-        if self.is_image_fullscreen: # Se l'immagine è in modalità fullscreen
-            self.is_image_fullscreen = False # Disattiva la modalità fullscreen
-            self.showNormal()  # Torna alla modalità finestra normale
-            self.comment_box.show()  # Mostra la descrizione
-            self.comment_input.show()  # Mostra la casella di input descrizioni
-            self.favorite_check.show()  # Mostra la checkbox per preferiti
-            self.layout.setContentsMargins(10, 10, 10, 10)  # Ripristina i margini
-            self.setWindowState(Qt.WindowState.WindowNoState)  # Ripristina la finestra a normale
-        else:
-            # Vai in modalità fullscreen
-            self.is_image_fullscreen = True # Attiva la modalità fullscreen
-            self.showFullScreen()  # Vai in modalità schermo intero
-            self.like_btn.hide()  # Nascondi il pulsante like
-            self.dwn_btn.hide()  # Nascondi il pulsante download
-            self.del_btn.hide()  # Nascondi il pulsante delete
-            self.print_btn.hide()  # Nascondi il pulsante print
-            self.comment_box.hide()  # Nascondi la descrizione
-            self.comment_input.hide()  # Nascondi la casella di input descrizione
-            self.favorite_check.hide()  # Nascondi la checkbox per preferiti
-            self.layout.setContentsMargins(0, 0, 0, 0)  # Rimuovi i margini
+    def mouseMoveEvent(self, event):
+        if (self.dragging and 
+            self.image_paths and 
+            self.zoom_factor > 1.0):
+            delta = event.pos() - self.drag_start_pos
+            self.drag_start_pos = event.pos()
+            
+            h_bar = self.scroll_area.horizontalScrollBar()
+            v_bar = self.scroll_area.verticalScrollBar()
+            h_bar.setValue(h_bar.value() - delta.x())
+            v_bar.setValue(v_bar.value() - delta.y())
+        super().mouseMoveEvent(event)
 
-    def keyPressEvent(self, event: QKeyEvent): # Sovrascrive il metodo keyPressEvent della finestra principale (per uscire dalla modalità fullscreen con ESC)
+    def wheelEvent(self, event: QWheelEvent):
+        if self.image_paths:
+            modifiers = QApplication.keyboardModifiers()
+            if modifiers == Qt.KeyboardModifier.ControlModifier:
+                mouse_pos = event.position()                
+                h_bar = self.scroll_area.horizontalScrollBar()
+                v_bar = self.scroll_area.verticalScrollBar()
+                old_h = h_bar.value()
+                old_v = v_bar.value()                
+                if event.angleDelta().y() > 0:
+                    self.zoom_in()
+                else:
+                    self.zoom_out()                    
+                if hasattr(self, 'current_pixmap') and self.current_pixmap:
+                    img_center = QPointF(
+                        self.current_pixmap.width() / 2,
+                        self.current_pixmap.height() / 2)
+                    zoom_center = mouse_pos - img_center
+                    h_bar.setValue(int(zoom_center.x() * (self.zoom_factor - 1) + old_h))
+                    v_bar.setValue(int(zoom_center.y() * (self.zoom_factor - 1) + old_v))
+                event.accept()
+            else:
+                event.ignore()
+    # METODI ZOOM ------------------------------------------------------------------------------------------------
+    def zoom_in(self):
+        if not hasattr(self, 'max_zoom'):
+            self.max_zoom = 5.0
+        if self.image_paths and self.zoom_factor < self.max_zoom:
+            self.zoom_factor = min(self.zoom_factor * 1.1, self.max_zoom)
+            self.apply_zoom()    
+    def zoom_out(self):
+        if not hasattr(self, 'min_zoom'):
+            self.min_zoom = 0.1
+        if self.image_paths and self.zoom_factor > self.min_zoom:
+            self.zoom_factor = max(self.zoom_factor / 1.1, self.min_zoom)
+            self.apply_zoom()    
+    def reset_zoom(self):
+        if self.image_paths:
+            self.zoom_factor = 1.0
+            self.apply_zoom()    
+    def apply_zoom(self):
+        if not self.image_paths or not self.original_pixmap:
+            return            
+        pixmap = self.original_pixmap.copy()        
+        base_size = min(400, min(pixmap.width(), pixmap.height()))        
+        scaled_size = int(base_size * self.zoom_factor)        
+        scaled_pixmap = pixmap.scaled(
+            scaled_size, scaled_size,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation)        
+        if self.rotation_angle != 0:
+            transform = QTransform().rotate(self.rotation_angle)
+            scaled_pixmap = scaled_pixmap.transformed(transform)        
+        self.current_pixmap = scaled_pixmap        
+        self.image_label.setPixmap(scaled_pixmap)
+        self.image_label.resize(scaled_pixmap.size())        
+        if hasattr(self, 'scroll_area'):
+            scroll_pos = self.scroll_area.horizontalScrollBar().value()
+            scroll_pos = min(scroll_pos, self.image_label.width() - self.scroll_area.width())
+            self.scroll_area.horizontalScrollBar().setValue(scroll_pos)            
+            scroll_pos = self.scroll_area.verticalScrollBar().value()
+            scroll_pos = min(scroll_pos, self.image_label.height() - self.scroll_area.height())
+            self.scroll_area.verticalScrollBar().setValue(scroll_pos)        
+        self.status_bar.showMessage(f"Zoom: {int(self.zoom_factor * 100)}%")
+    # USCIRE DAL FULSCREEN CON ESC --------------------------------------------------------------------------------
+    def keyPressEvent(self, event: QKeyEvent):
         if event.key() == Qt.Key.Key_Escape and self.is_image_fullscreen:
-            self.toggle_image_fullscreen()  # Esci dalla modalità fullscreen con ESC
+            self.toggle_image_fullscreen()
         super().keyPressEvent(event)
-    
-    def toggle_like(self): # Metodo per aggiungere/rimuovere un like
+    # AGGIUNGI/RIMUOVI LIKE
+    def toggle_like(self):
         if self.image_paths:
             self.likes[self.current_index] = not self.likes[self.current_index]
             icon = QIcon("icons/heart_filled_white.png" if self.is_dark_theme() else "icons/heart_filled.png") if self.likes[self.current_index] else QIcon("icons/heart_empty_white.png" if self.is_dark_theme() else "icons/heart_empty.png")
             self.like_btn.setIcon(icon)
             self.update_display()
-
-    def adjust_textedit_height(self): # Metodo per regolare l'altezza della casella di testo in base al contenuto
+    # REGOLA ALTEZZA DELLA CASELLA DI TESTO IN BASE ALLA QUANTITA' DEL CONTENUTO ----------------------------------
+    def adjust_textedit_height(self):
         doc = self.comment_box.document()
-        new_height = int(doc.documentLayout().documentSize().height()) + 10  # Corretto per PyQt6
-        max_height = 200  # Limite massimo opzionale
-        self.comment_box.setFixedHeight(min(new_height, max_height))  # Imposta la nuova altezza
-
+        new_height = int(doc.documentLayout().documentSize().height()) + 10
+        max_height = 200
+        self.comment_box.setFixedHeight(min(new_height, max_height))
+    # CENTRA IL TESTO NELL'AREA DI TESTO --------------------------------------------------------------------------
     def center_text_in_comment_box(self):
         cursor = self.comment_box.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.Start)  # Posizionamento all'inizio del documento
-        cursor.movePosition(QTextCursor.MoveOperation.End, QTextCursor.MoveMode.KeepAnchor)  # Selezione dell'intero documento
+        cursor.movePosition(QTextCursor.MoveOperation.Start) 
+        cursor.movePosition(QTextCursor.MoveOperation.End, QTextCursor.MoveMode.KeepAnchor)
         format = QTextBlockFormat()
-        format.setAlignment(Qt.AlignmentFlag.AlignCenter)  # Imposta allineamento al centro
-        cursor.mergeBlockFormat(format) # Deseleziona il testo spostandoti alla fine senza selezionare
-        cursor.movePosition(QTextCursor.MoveOperation.End) # Riposizionati in QTextEdit       
+        format.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        cursor.mergeBlockFormat(format)
+        cursor.movePosition(QTextCursor.MoveOperation.End)     
         self.comment_box.setTextCursor(cursor)
-
+    # AGGIUNGI DESCRIZIONE (COMMENTO) -----------------------------------------------------------------------------
     def add_comment(self):
         comment = self.comment_input.text()  # Ottieni il testo dalla casella di input
         if not self.image_paths:  # Se la lista è vuota
@@ -277,7 +417,7 @@ class Photo(QMainWindow):
             self.comment_box.setPlainText(comment)  # Aggiorna la casella di testo con il nuovo commento
             self.center_text_in_comment_box()  # Centra il testo nel QTextEdit
             self.comment_input.clear()  # Cancella il testo dalla casella di input
-
+    # SELEZIONE MULTIPLA -------------------------------------------------------------------------------------------
     def toggle_favorite(self):
         if self.image_paths:
             self.favorites[self.current_index] = self.favorite_check.isChecked() # Aggiorna lo stato del favorito dell'immagine corrente
@@ -289,15 +429,15 @@ class Photo(QMainWindow):
                 if current_image in self.selected_images:
                     self.selected_images.remove(current_image)
             self.status_bar.showMessage(f"Immagini selezionate: {len(self.selected_images)}") # Aggiorna lo status bar
-
-    def update_ui(self): # Aggiorna l'interfaccia quando si cambia immagine
+    # AGGIORNAMENTO INTERFACCIA QUANDO SI CAMBIA IMMAGINE ----------------------------------------------------------
+    def update_ui(self):
         if self.image_paths:
             self.image_label.setPixmap(QPixmap(self.image_paths[self.current_index]))
             # Controlla se l'immagine è nei preferiti e aggiorna la checkbox
             self.favorite_check.blockSignals(True)  # Evita attivazione del segnale mentre aggiorniamo lo stato
             self.favorite_check.setChecked(self.favorites.get(self.current_index, False))
             self.favorite_check.blockSignals(False)  # Riattiva i segnali dopo l'aggiornamento
-
+    # DOWNLOAD IMMAGINE ---------------------------------------------------------------------------------------------
     def download_images(self):
         # Se nessun'immagine è stata selezionata, scarica quella visualizzata
         if not self.selected_images:
@@ -314,8 +454,7 @@ class Photo(QMainWindow):
                 self,
                 "Salva Immagine",
                 os.path.basename(image_path),  # Default filename
-                "Images (*.png *.jpg *.jpeg);;All Files (*)"           
-                )            
+                "Images (*.png *.jpg *.jpeg);;All Files (*)")            
             if save_path:
                 try:
                     shutil.copy(image_path, save_path)
@@ -327,8 +466,7 @@ class Photo(QMainWindow):
                 self,
                 "Salva Immagini come ZIP",
                 "",
-                "ZIP Files (*.zip);;All Files (*)"
-            )            
+                "ZIP Files (*.zip);;All Files (*)")            
             if save_path:
                 # Crea una dir temporanea per immagazzinare le foto prima di zipparle
                 temp_dir = tempfile.mkdtemp()                
@@ -347,7 +485,7 @@ class Photo(QMainWindow):
                 finally:
                     # Ripulisci dir temporanea               
                     shutil.rmtree(temp_dir)
-
+    # DELETE IMMAGINE ---------------------------------------------------------------------------------------------
     def delete_images(self):
         # Se non ci sono molteplici immagini selezionate, elimina la visualizzata
         if not self.selected_images:
@@ -367,8 +505,7 @@ class Photo(QMainWindow):
             "Conferma eliminazione",
             msg,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
-        )
+            QMessageBox.StandardButton.No)
         if reply != QMessageBox.StandardButton.Yes:
             return
         # Elimina
@@ -396,14 +533,12 @@ class Photo(QMainWindow):
             QMessageBox.warning(
                 self,
                 "Eliminazione parziale",
-                f"{deleted_count} immagini eliminate con successo.\n\nErrori:\n{error_msg}"
-            )
+                f"{deleted_count} immagini eliminate con successo.\n\nErrori:\n{error_msg}")
         else:
             QMessageBox.information(
                 self,
                 "Operazione completata",
-                f"{deleted_count} immagini eliminate con successo."
-            )
+                f"{deleted_count} immagini eliminate con successo.")
         # Ripulisci selezione
         self.selected_images.clear()
         self.status_bar.showMessage(f"Immagini selezionate: 0")        
@@ -414,7 +549,7 @@ class Photo(QMainWindow):
             self.image_label.clear()
             self.comment_box.clear()
             self.setWindowTitle("Photo")
-
+    # STAMPA IMMAGINE -------------------------------------------------------------------------------------------------
     def print_image(self):
         if not self.image_paths:
             QMessageBox.warning(self, "Attenzione", "Nessuna immagine da stampare.")
@@ -439,7 +574,7 @@ class Photo(QMainWindow):
                 QMessageBox.information(self, "Stampa", "Immagine inviata alla stampante con successo!")
             except Exception as e:
                 QMessageBox.critical(self, "Errore", f"Errore durante la stampa:\n{str(e)}")
-    
+    # AGGIORNAMENTO DETTAGLI DELL'IMMAGINE -------------------------------------------------------------------------------
     def update_image_details(self):
         if self.image_paths:
             current_image_path = self.image_paths[self.current_index]
@@ -453,67 +588,56 @@ class Photo(QMainWindow):
             file_size_str = f"{file_size_kb:.2f} KB" if file_size_kb < 1024 else f"{file_size_kb/1024:.2f} MB"
             # Aggiorna l'etichetta con le informazioni
             self.status_bar.showMessage(f"Dimensioni: {width}x{height} px | Peso: {file_size_str}")
-
-    def show_alert(self, message): # Metodo per mostrare un messaggio di avviso
+    # MESSAGGIO D'AVVISO -------------------------------------------------------------------------------------------------
+    def show_alert(self, message):
         alert = QMessageBox()
         alert.setIcon(QMessageBox.Icon.Warning)
         alert.setWindowTitle("Errore")
         alert.setText(message)
         alert.setStandardButtons(QMessageBox.StandardButton.Ok)
         alert.exec()  # Mostra la finestra di dialogo
-
+    # TEMI - CHIARO/SCURO ------------------------------------------------------------------------------------------------
     def set_light_theme(self):
         self.setStyleSheet("")        
         self.update_icons()
         self.update_display()
-
     def set_dark_theme(self):
         """Set dark theme with custom stylesheet"""
         dark_stylesheet = """
             QMainWindow, QWidget {
                 background-color: #2D2D2D;
-                color: #FFFFFF;
-            }
+                color: #FFFFFF;}
             QPushButton {
                 background-color: #3A3A3A;
                 border: 1px solid #555;
                 color: #FFFFFF;
-                padding: 5px;
-            }
+                padding: 5px;}
             QPushButton:hover {
-                background-color: #4A4A4A;
-            }
+                background-color: #4A4A4A;}
             QLineEdit, QTextEdit {
                 background-color: #3A3A3A;
                 color: #FFFFFF;
-                border: 1px solid #555;
-            }
+                border: 1px solid #555;}
             QCheckBox {
-                color: #FFFFFF;
-            }
+                color: #FFFFFF;}
             QMenuBar {
                 background-color: #2D2D2D;
-                color: #FFFFFF;
-            }
+                color: #FFFFFF;}
             QMenuBar::item:selected {
-                background-color: #4A4A4A;
-            }
+                background-color: #4A4A4A;}
             QMenu {
                 background-color: #3A3A3A;
-                color: #FFFFFF;
-            }
+                color: #FFFFFF;}
             QMenu::item:selected {
-                background-color: #4A4A4A;
-            }
+                background-color: #4A4A4A;}
             QStatusBar {
                 background-color: #2D2D2D;
-                color: #FFFFFF;
-            }
+                color: #FFFFFF;}
         """
         self.setStyleSheet(dark_stylesheet)
         self.update_icons()
         self.update_display()
-
+    # AGGIORNAMENTO ICONE IN BASE AL TEMA SCELTO ---------------------------------------------------------------------------
     def update_icons(self):
         is_dark = self.is_dark_theme()    
         if self.image_paths and len(self.likes) > self.current_index:
@@ -526,11 +650,12 @@ class Photo(QMainWindow):
             self.dwn_btn: "download",
             self.del_btn: "delete",
             self.print_btn: "print",
-            self.fullscreen_img_btn: "fullscreen"
+            self.fullscreen_img_btn: "fullscreen",
+            self.zoom_in_btn: "zoomin",
+            self.zoom_out_btn: "zoomout"
         }        
         for btn, icon_name in btn_icons.items():
             btn.setIcon(QIcon(f"icons/{icon_name}_white.png" if is_dark else f"icons/{icon_name}.png"))
-
     def is_dark_theme(self):
         return self.palette().window().color().lightness() < 128
 
