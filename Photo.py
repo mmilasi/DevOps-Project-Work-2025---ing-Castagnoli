@@ -262,29 +262,37 @@ class Photo(QMainWindow):
             self.is_image_fullscreen = False
             self.showNormal()            
             # ripristina elementi UI con transizione graduale
-            QTimer.singleShot(500, lambda: [
-                self.like_btn.show(),
-                self.rotate_btn.show(),
-                self.dwn_btn.show(),
-                self.del_btn.show(),
-                self.print_btn.show(),
-                self.comment_box.show(),
-                self.comment_input.show(),
-                self.favorite_check.show()
-            ])            
+            buttons_to_show = [
+                self.like_btn,
+                self.rotate_btn,
+                self.dwn_btn,
+                self.del_btn,
+                self.print_btn,
+                self.comment_box,
+                self.comment_input,
+                self.favorite_check]
+            delay = 100  # Delay in milisecondi
+            for btn in buttons_to_show:
+                QTimer.singleShot(delay, lambda b=btn: b.show())
+                delay += 100  # Incrementa delay in milisecondi per ogni bottone successivo        
             self.layout.setContentsMargins(10, 10, 10, 10)
             self.setWindowState(Qt.WindowState.WindowNoState)            
         else:  # All'entrata in modalità fullscreen
             self.is_image_fullscreen = True
             self.showFullScreen()            
             # Nascondi elementi UI indesiderati
-            self.like_btn.hide()
-            self.dwn_btn.hide()
-            self.del_btn.hide()
-            self.print_btn.hide()
-            self.comment_input.hide()
-            self.favorite_check.hide()
-            self.rotate_btn.hide()            
+            buttons_to_hide = [
+                self.like_btn,
+                self.rotate_btn,
+                self.dwn_btn,
+                self.del_btn,
+                self.print_btn,
+                self.comment_input,
+                self.favorite_check]
+            delay = 100  # Delay in milisecondi
+            for btn in buttons_to_hide:
+                QTimer.singleShot(delay, lambda b=btn: b.hide())
+                delay += 100  # Incrementa delay in milisecondi per ogni bottone successivo          
             self.layout.setContentsMargins(0, 0, 0, 0)            
             self.update_display()        
         self.update()
@@ -297,7 +305,6 @@ class Photo(QMainWindow):
             self.dragging = True
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
         super().mousePressEvent(event)
-
     def mouseMoveEvent(self, event):
         if (self.dragging and 
             self.image_paths and 
@@ -310,7 +317,6 @@ class Photo(QMainWindow):
             h_bar.setValue(h_bar.value() - delta.x())
             v_bar.setValue(v_bar.value() - delta.y())
         super().mouseMoveEvent(event)
-
     def wheelEvent(self, event: QWheelEvent):
         if self.image_paths:
             modifiers = QApplication.keyboardModifiers()
@@ -334,6 +340,17 @@ class Photo(QMainWindow):
                 event.accept()
             else:
                 event.ignore()
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and self.dragging:
+            self.dragging = False
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+        super().mouseReleaseEvent(event)
+    def leaveEvent(self, event):
+        if self.dragging:
+            self.dragging = False
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+        super().leaveEvent(event)
+
     # METODI ZOOM ------------------------------------------------------------------------------------------------
     def zoom_in(self):
         if not hasattr(self, 'max_zoom'):
@@ -597,12 +614,12 @@ class Photo(QMainWindow):
         alert.setStandardButtons(QMessageBox.StandardButton.Ok)
         alert.exec()  # Mostra la finestra di dialogo
     # TEMI - CHIARO/SCURO ------------------------------------------------------------------------------------------------
+    
     def set_light_theme(self):
         self.setStyleSheet("")        
         self.update_icons()
         self.update_display()
     def set_dark_theme(self):
-        """Set dark theme with custom stylesheet"""
         dark_stylesheet = """
             QMainWindow, QWidget {
                 background-color: #2D2D2D;
@@ -619,7 +636,20 @@ class Photo(QMainWindow):
                 color: #FFFFFF;
                 border: 1px solid #555;}
             QCheckBox {
-                color: #FFFFFF;}
+                color: #FFFFFF;
+                spacing: 5px;}
+            QCheckBox::indicator {
+                border: 1px solid #555;
+                background-color: #3A3A3A;}
+            QCheckBox::indicator:checked {
+                width: 12px;
+                height: 12px;
+                image: url(icons/checked_white.png);
+                background-color: #4A4A4A;
+                color: #FFFFFF;
+                border: 1px solid #555;}
+            QCheckBox::indicator:hover {
+                border: 1px solid #CCCCCC;}
             QMenuBar {
                 background-color: #2D2D2D;
                 color: #FFFFFF;}
