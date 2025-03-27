@@ -13,7 +13,8 @@ class Photo(QMainWindow):
     def __init__(self):
         super().__init__()
         # INIT -----------------------------------------------------------------------------------------------------
-        self.setWindowTitle("Photo")  # Imposta il titolo della finestra
+        self.setWindowIcon(QIcon("icons/gallery.svg"))
+        self.setWindowTitle("Photo Gallery")  # Imposta il titolo della finestra
         self.setGeometry(100, 100, 450, 700)  # Imposta la dimensione della finestra
 
         # Layout principale
