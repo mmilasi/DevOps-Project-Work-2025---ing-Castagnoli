@@ -1,7 +1,5 @@
-ITS Adriano Olivetti
-DevOps 2024/2026
-Tutor: Ing. Stefano Castagnoli
-**Project Work**
+# Project Work
+ITS Adriano Olivetti - DevOps 2024/2026 - Tutor: Ing. Stefano Castagnoli
 
 ## Italiano
 
