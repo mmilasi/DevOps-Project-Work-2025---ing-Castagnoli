@@ -180,6 +180,12 @@ class Photo(QMainWindow):
         self.image_offset = QPointF(0, 0)
         self.current_pixmap = None
         self.dragging = False
+        self.zoom_factor = 1.0
+        self.min_zoom = 0.1
+        self.max_zoom = 5.0
+        self.drag_start_pos = None
+        self.dragging = False
+        self._last_mouse_pos = None
         self.update_icons()
 
 # METODI -------------------------------------------------------------------------------------------------------
@@ -198,9 +204,11 @@ class Photo(QMainWindow):
             self.update_display() # Aggiorna l'interfaccia con l'immagine corrente
     # RUOTA IMMAGINE -------------------------------------------------------------------------------------------
     def rotate_image(self):
-        if self.image_paths:
-            self.rotation_angle = (self.rotation_angle + 90) % 360  # Incrementa l'angolo di rotazione di 90 gradi
-            self.update_display()  # Aggiorna l'interfaccia con l'immagine corrente
+        if not self.image_paths:
+            return            
+        self.rotation_angle = (self.rotation_angle + 90) % 360
+        self._image_cache = {}
+        self.update_display()
     # AGGIORNAMENTO INTERAFCCIA IMMAGINE CORRENTE --------------------------------------------------------------      
     def update_display(self):
         if self.image_paths:
@@ -237,14 +245,14 @@ class Photo(QMainWindow):
             self.setWindowTitle(f"Photo - {filename}")
             self.status_bar.showMessage(f"Zoom: {int(self.zoom_factor * 100)}%")            
             self.center_image()
-    def center_image(self): # Centra immagine
+    def center_image(self):
         if hasattr(self, 'scroll_area') and self.image_paths:
-            # centra l'immagine quando cambia lo zoom
-            self.scroll_area.ensureVisible(
-                self.image_label.width() // 2,
-                self.image_label.height() // 2,
-                self.scroll_area.width() // 2,
-                self.scroll_area.height() // 2)
+            h_bar = self.scroll_area.horizontalScrollBar()
+            v_bar = self.scroll_area.verticalScrollBar()
+            h_center = (h_bar.maximum() - h_bar.minimum()) // 2
+            v_center = (v_bar.maximum() - v_bar.minimum()) // 2
+            h_bar.setValue(h_center)
+            v_bar.setValue(v_center)
     # RIDIMENSIONAMENTO FINESTRA -------------------------------------------------------------------------------
     def resizeEvent(self, event):
         self.update_display()
@@ -305,10 +313,10 @@ class Photo(QMainWindow):
     def mouseMoveEvent(self, event):
         if (self.dragging and 
             self.image_paths and 
-            self.zoom_factor > 1.0):
+            self.zoom_factor > 1.0 and
+            self.drag_start_pos):
             delta = event.pos() - self.drag_start_pos
             self.drag_start_pos = event.pos()
-            
             h_bar = self.scroll_area.horizontalScrollBar()
             v_bar = self.scroll_area.verticalScrollBar()
             h_bar.setValue(h_bar.value() - delta.x())
@@ -349,45 +357,52 @@ class Photo(QMainWindow):
         super().leaveEvent(event)
     # METODI ZOOM ------------------------------------------------------------------------------------------------
     def zoom_in(self):
-        if not hasattr(self, 'max_zoom'):
-            self.max_zoom = 5.0
-        if self.image_paths and self.zoom_factor < self.max_zoom:
-            self.zoom_factor = min(self.zoom_factor * 1.1, self.max_zoom)
-            self.apply_zoom()    
+        if self.image_paths:
+            self.zoom_with_factor(1.1)
     def zoom_out(self):
-        if not hasattr(self, 'min_zoom'):
-            self.min_zoom = 0.1
-        if self.image_paths and self.zoom_factor > self.min_zoom:
-            self.zoom_factor = max(self.zoom_factor / 1.1, self.min_zoom)
-            self.apply_zoom()    
+        if self.image_paths:
+            self.zoom_with_factor(0.9)
     def reset_zoom(self):
         if self.image_paths:
             self.zoom_factor = 1.0
-            self.apply_zoom()    
+            self.apply_zoom()
+            self.center_image()
+    def zoom_with_factor(self, factor):
+        if not self.image_paths:
+            return
+        h_bar = self.scroll_area.horizontalScrollBar()
+        v_bar = self.scroll_area.verticalScrollBar()
+        old_h = h_bar.value()
+        old_v = v_bar.value()
+        viewport_center = self.scroll_area.viewport().rect().center()
+        widget_center = self.image_label.mapFrom(self.scroll_area, viewport_center)
+        new_zoom = self.zoom_factor * factor
+        self.zoom_factor = max(self.min_zoom, min(new_zoom, self.max_zoom))
+        self.apply_zoom()
+        new_h = widget_center.x() * (self.zoom_factor - 1) + old_h
+        new_v = widget_center.y() * (self.zoom_factor - 1) + old_v
+        h_bar.setValue(int(new_h))
+        v_bar.setValue(int(new_v))  
     def apply_zoom(self):
         if not self.image_paths or not self.original_pixmap:
-            return            
-        pixmap = self.original_pixmap.copy()        
-        base_size = min(400, min(pixmap.width(), pixmap.height()))        
-        scaled_size = int(base_size * self.zoom_factor)        
-        scaled_pixmap = pixmap.scaled(
-            scaled_size, scaled_size,
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation)        
-        if self.rotation_angle != 0:
-            transform = QTransform().rotate(self.rotation_angle)
-            scaled_pixmap = scaled_pixmap.transformed(transform)        
-        self.current_pixmap = scaled_pixmap        
-        self.image_label.setPixmap(scaled_pixmap)
-        self.image_label.resize(scaled_pixmap.size())        
-        if hasattr(self, 'scroll_area'):
-            scroll_pos = self.scroll_area.horizontalScrollBar().value()
-            scroll_pos = min(scroll_pos, self.image_label.width() - self.scroll_area.width())
-            self.scroll_area.horizontalScrollBar().setValue(scroll_pos)            
-            scroll_pos = self.scroll_area.verticalScrollBar().value()
-            scroll_pos = min(scroll_pos, self.image_label.height() - self.scroll_area.height())
-            self.scroll_area.verticalScrollBar().setValue(scroll_pos)        
-        self.status_bar.showMessage(f"Zoom: {int(self.zoom_factor * 100)}%")
+            return
+        try:
+            base_size = min(400, min(self.original_pixmap.width(), self.original_pixmap.height()))
+            scaled_size = int(base_size * self.zoom_factor)
+            scaled_pixmap = self.original_pixmap.scaled(
+                scaled_size, scaled_size,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            if self.rotation_angle != 0:
+                transform = QTransform().rotate(self.rotation_angle)
+                scaled_pixmap = scaled_pixmap.transformed(transform)
+            self.current_pixmap = scaled_pixmap
+            self.image_label.setPixmap(scaled_pixmap)
+            self.image_label.resize(scaled_pixmap.size())
+            self.status_bar.showMessage(f"Zoom: {int(self.zoom_factor * 100)}%")
+        except Exception as e:
+            print(f"Error applying zoom: {str(e)}")
     # USCIRE DAL FULSCREEN CON ESC --------------------------------------------------------------------------------
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() == Qt.Key.Key_Escape and self.is_image_fullscreen:
