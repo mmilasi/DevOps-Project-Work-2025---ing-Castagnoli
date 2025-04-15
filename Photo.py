@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QLabel, QPushButton, QVB
                              QWidget, QFileDialog, QLineEdit, QTextEdit, QCheckBox, QHBoxLayout, 
                              QStatusBar, QSizePolicy, QFileDialog, QMessageBox, QScrollArea)
 from PyQt6.QtGui import QAction, QPixmap, QIcon, QKeyEvent, QTransform, QTextCursor, QTextBlockFormat, QPainter, QPageLayout, QWheelEvent
-from PyQt6.QtCore import Qt, QPointF, QTimer
+from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
 
 class Photo(QMainWindow):
@@ -166,9 +166,9 @@ class Photo(QMainWindow):
         # Variabili di stato
         self.image_paths = []  # Lista di percorsi delle immagini
         self.current_index = 0  # Indice dell'immagine corrente
-        self.likes = []  # Lista di like per le immagini
+        self.likes = {}  # Dizionario di like per le immagini
         self.comments = {}  # Dizionario di commenti per le immagini
-        self.favorites = {}  # Lista di immagini preferite
+        self.favorites = {}  # Dizionario di immagini preferite
         self.rotation_angle = 0  # Variabile per memorizzare l'angolo di rotazione dell'immagine
         self.selected_images = []  # Lista per tenere traccia delle immagini selezionate
         self.zoom_factor = 1.0    # Livello zoom attuale (1.0 = 100%)
@@ -190,7 +190,7 @@ class Photo(QMainWindow):
             for file in files: # per ogni immagine 
                 if file not in self.image_paths: # se l'immagine non è nella lista
                     self.image_paths.append(file) # aggiunge nuove immagini alle esistenti, evitando duplicati
-                    self.likes.append(False)  # aggiunge Like default
+                    self.likes[file] = False  # aggiunge Like default
                     self.comments[file] = ""  # aggiunge descrizione vuota
                     self.favorites[len(self.image_paths)-1] = False # inizializza stato di preferito di default        
             # Se questo era il primo caricamento, aggiorna indice a 0
@@ -231,8 +231,8 @@ class Photo(QMainWindow):
                 self.comment_box.setPlainText(self.comments.get(self.image_paths[self.current_index], ""))
                 self.center_text_in_comment_box()
                 self.favorite_check.setChecked(self.favorites.get(self.current_index, False))
+                self.update_like_icon()
             self.update_image_details() # Aggiorna l'interfaccia con l'immagine corrente
-
             filename = os.path.basename(self.image_paths[self.current_index])
             self.setWindowTitle(f"Photo - {filename}")
             self.status_bar.showMessage(f"Zoom: {int(self.zoom_factor * 100)}%")            
@@ -259,10 +259,10 @@ class Photo(QMainWindow):
             self.current_index += 1
             self.update_display()
     def toggle_image_fullscreen(self):
-        if self.is_image_fullscreen:  # quando esci dalla modalità fullscreen:
+        if self.is_image_fullscreen:  # Uscita dalla modalità fullscreen
             self.is_image_fullscreen = False
-            self.showNormal()            
-            # ripristina elementi UI con transizione graduale
+            self.showNormal()
+            # Mostra tutti gli elementi UI
             buttons_to_show = [
                 self.like_btn,
                 self.rotate_btn,
@@ -272,16 +272,14 @@ class Photo(QMainWindow):
                 self.comment_box,
                 self.comment_input,
                 self.favorite_check]
-            delay = 100  # Delay in milisecondi
             for btn in buttons_to_show:
-                QTimer.singleShot(delay, lambda b=btn: b.show())
-                delay += 100  # Incrementa delay in milisecondi per ogni bottone successivo        
+                btn.show()
             self.layout.setContentsMargins(10, 10, 10, 10)
-            self.setWindowState(Qt.WindowState.WindowNoState)            
-        else:  # All'entrata in modalità fullscreen
+            self.setWindowState(Qt.WindowState.WindowNoState)
+        else:  # Entrata in modalità fullscreen
             self.is_image_fullscreen = True
-            self.showFullScreen()            
-            # Nascondi elementi UI indesiderati
+            self.showFullScreen()
+            # Nasconde gli elementi UI indesiderati
             buttons_to_hide = [
                 self.like_btn,
                 self.rotate_btn,
@@ -290,12 +288,10 @@ class Photo(QMainWindow):
                 self.print_btn,
                 self.comment_input,
                 self.favorite_check]
-            delay = 100  # Delay in milisecondi
             for btn in buttons_to_hide:
-                QTimer.singleShot(delay, lambda b=btn: b.hide())
-                delay += 100  # Incrementa delay in milisecondi per ogni bottone successivo          
-            self.layout.setContentsMargins(0, 0, 0, 0)            
-            self.update_display()        
+                btn.hide()
+            self.layout.setContentsMargins(0, 0, 0, 0)
+            self.update_display()
         self.update()
     # GESTIONE DI EVENTI DEL MOUSE ------------------------------------------------------------------------------
     def mousePressEvent(self, event):
@@ -351,7 +347,6 @@ class Photo(QMainWindow):
             self.dragging = False
             self.setCursor(Qt.CursorShape.ArrowCursor)
         super().leaveEvent(event)
-
     # METODI ZOOM ------------------------------------------------------------------------------------------------
     def zoom_in(self):
         if not hasattr(self, 'max_zoom'):
@@ -401,10 +396,19 @@ class Photo(QMainWindow):
     # AGGIUNGI/RIMUOVI LIKE
     def toggle_like(self):
         if self.image_paths:
-            self.likes[self.current_index] = not self.likes[self.current_index]
-            icon = QIcon("icons/heart_filled_white.png" if self.is_dark_theme() else "icons/heart_filled.png") if self.likes[self.current_index] else QIcon("icons/heart_empty_white.png" if self.is_dark_theme() else "icons/heart_empty.png")
+            current_path = self.image_paths[self.current_index]
+            self.likes[current_path] = not self.likes.get(current_path, False)
+            self.update_like_icon()
+            # Aggiorna anche lo stato nel dizionario dei preferiti se necessario
+            if current_path in self.selected_images and not self.likes[current_path]:
+                self.selected_images.remove(current_path)
+                self.favorite_check.setChecked(False)     
+    def update_like_icon(self):
+        if self.image_paths:
+            current_path = self.image_paths[self.current_index]
+            is_liked = self.likes.get(current_path, False)
+            icon = QIcon("icons/heart_filled_white.png" if self.is_dark_theme() else "icons/heart_filled.png") if is_liked else QIcon("icons/heart_empty_white.png" if self.is_dark_theme() else "icons/heart_empty.png")
             self.like_btn.setIcon(icon)
-            self.update_display()
     # REGOLA ALTEZZA DELLA CASELLA DI TESTO IN BASE ALLA QUANTITA' DEL CONTENUTO ----------------------------------
     def adjust_textedit_height(self):
         doc = self.comment_box.document()
@@ -534,9 +538,13 @@ class Photo(QMainWindow):
                 # Rimuovi da liste interne se esistono
                 if image_path in self.image_paths:
                     index = self.image_paths.index(image_path)
-                    del self.image_paths[index]
-                    del self.likes[index]
-                    del self.favorites[index]
+                    # Rimuovi da tutte le liste in modo sicuro
+                    if index < len(self.image_paths):
+                        del self.image_paths[index]
+                    if image_path in self.likes:
+                        del self.likes[image_path]
+                    if index in self.favorites:
+                        del self.favorites[index]
                     if image_path in self.comments:
                         del self.comments[image_path]                    
                     # Aggiorna l'indice se neccessario
@@ -615,7 +623,6 @@ class Photo(QMainWindow):
         alert.setStandardButtons(QMessageBox.StandardButton.Ok)
         alert.exec()  # Mostra la finestra di dialogo
     # TEMI - CHIARO/SCURO ------------------------------------------------------------------------------------------------
-    
     def set_light_theme(self):
         self.setStyleSheet("")        
         self.update_icons()
@@ -670,12 +677,14 @@ class Photo(QMainWindow):
         self.update_display()
     # AGGIORNAMENTO ICONE IN BASE AL TEMA SCELTO ---------------------------------------------------------------------------
     def update_icons(self):
-        is_dark = self.is_dark_theme()    
-        if self.image_paths and len(self.likes) > self.current_index:
-            like_state = "_filled" if self.likes[self.current_index] else "_empty"
+        is_dark = self.is_dark_theme()
+        if self.image_paths:
+            current_path = self.image_paths[self.current_index]
+            is_liked = self.likes.get(current_path, False)
+            like_state = "_filled" if is_liked else "_empty"
             self.like_btn.setIcon(QIcon(f"icons/heart{like_state}_white.png" if is_dark else f"icons/heart{like_state}.png"))
         else:
-            self.like_btn.setIcon(QIcon("icons/heart_empty_white.png" if is_dark else "icons/heart_empty.png"))      
+            self.like_btn.setIcon(QIcon("icons/heart_empty_white.png" if is_dark else "icons/heart_empty.png"))  
         btn_icons = {
             self.rotate_btn: "rotate",
             self.dwn_btn: "download",
@@ -684,7 +693,7 @@ class Photo(QMainWindow):
             self.fullscreen_img_btn: "fullscreen",
             self.zoom_in_btn: "zoomin",
             self.zoom_out_btn: "zoomout"
-        }        
+        }    
         for btn, icon_name in btn_icons.items():
             btn.setIcon(QIcon(f"icons/{icon_name}_white.png" if is_dark else f"icons/{icon_name}.png"))
     def is_dark_theme(self):
