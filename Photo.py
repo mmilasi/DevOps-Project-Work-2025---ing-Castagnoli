@@ -218,7 +218,7 @@ class Photo(QMainWindow):
             x_offset = (pixmap.width() - min_side) // 2
             y_offset = (pixmap.height() - min_side) // 2
             self.original_pixmap = pixmap.copy(x_offset, y_offset, min_side, min_side)            
-            # in base a se è in fulscreen o meno, defnisci le dimensioni della finestra
+            # in base a se è in fullscreen o meno, defnisci le dimensioni della finestra
             if self.is_image_fullscreen:
                 display_size = min(self.screen().size().width(), self.screen().size().height())
             else:
@@ -240,10 +240,9 @@ class Photo(QMainWindow):
                 self.center_text_in_comment_box()
                 self.favorite_check.setChecked(self.favorites.get(self.current_index, False))
                 self.update_like_icon()
-            self.update_image_details() # Aggiorna l'interfaccia con l'immagine corrente
+            self.update_image_details() # Mostra sia zoom che dettagli
             filename = os.path.basename(self.image_paths[self.current_index])
             self.setWindowTitle(f"Photo - {filename}")
-            self.status_bar.showMessage(f"Zoom: {int(self.zoom_factor * 100)}%")            
             self.center_image()
     def center_image(self):
         if hasattr(self, 'scroll_area') and self.image_paths:
@@ -359,14 +358,17 @@ class Photo(QMainWindow):
     def zoom_in(self):
         if self.image_paths:
             self.zoom_with_factor(1.1)
+            self.update_image_details()
     def zoom_out(self):
         if self.image_paths:
             self.zoom_with_factor(0.9)
+            self.update_image_details()
     def reset_zoom(self):
         if self.image_paths:
             self.zoom_factor = 1.0
             self.apply_zoom()
             self.center_image()
+            self.update_image_details()
     def zoom_with_factor(self, factor):
         if not self.image_paths:
             return
@@ -400,7 +402,6 @@ class Photo(QMainWindow):
             self.current_pixmap = scaled_pixmap
             self.image_label.setPixmap(scaled_pixmap)
             self.image_label.resize(scaled_pixmap.size())
-            self.status_bar.showMessage(f"Zoom: {int(self.zoom_factor * 100)}%")
         except Exception as e:
             print(f"Error applying zoom: {str(e)}")
     # USCIRE DAL FULSCREEN CON ESC --------------------------------------------------------------------------------
@@ -627,8 +628,9 @@ class Photo(QMainWindow):
             file_size = os.path.getsize(current_image_path)  # Dimensione in byte
             file_size_kb = file_size / 1024  # Converti in KB
             file_size_str = f"{file_size_kb:.2f} KB" if file_size_kb < 1024 else f"{file_size_kb/1024:.2f} MB"
-            # Aggiorna l'etichetta con le informazioni
-            self.status_bar.showMessage(f"Dimensioni: {width}x{height} px | Peso: {file_size_str}")
+            # Combina tutte le informazioni in un unico messaggio
+            message = f"Zoom: {int(self.zoom_factor * 100)}% | Dimensioni originali: {width}x{height} px | Peso: {file_size_str}"
+            self.status_bar.showMessage(message)
     # MESSAGGIO D'AVVISO -------------------------------------------------------------------------------------------------
     def show_alert(self, message):
         alert = QMessageBox()
