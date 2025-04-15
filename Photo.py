@@ -2,17 +2,56 @@ import sys, os
 import zipfile
 import tempfile
 import shutil
+import requests
+import webbrowser
+from urllib.parse import quote
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, 
                              QWidget, QFileDialog, QLineEdit, QTextEdit, QCheckBox, QHBoxLayout, 
-                             QStatusBar, QSizePolicy, QFileDialog, QMessageBox, QScrollArea)
+                             QStatusBar, QSizePolicy, QFileDialog, QMessageBox, QScrollArea, QDialog)
 from PyQt6.QtGui import QAction, QPixmap, QIcon, QKeyEvent, QTransform, QTextCursor, QTextBlockFormat, QPainter, QPageLayout, QWheelEvent
-from PyQt6.QtCore import Qt, QPointF
+from PyQt6.QtCore import Qt, QPointF, QObject, QThread, pyqtSignal
 from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
+
+class ImgurUploader(QObject): # dedicato al caricamento di immagini per la ricerca visiva Google Lens attraverso Imgur
+    finished = pyqtSignal(str) 
+    error = pyqtSignal(str)
+    def __init__(self, image_path, client_id):
+        super().__init__()
+        self.image_path = image_path
+        self.client_id = client_id
+    def run(self):
+        try:
+            headers = {"Authorization": f"Client-ID {self.client_id}"}
+            with open(self.image_path, "rb") as f:
+                image_data = f.read()
+            response = requests.post(
+                "https://api.imgur.com/3/image",
+                headers=headers,
+                files={"image": image_data})
+            if response.status_code == 200:
+                data = response.json()
+                img_url = data["data"]["link"]
+                self.finished.emit(img_url)
+            else:
+                self.error.emit(f"Errore upload Imgur: {response.status_code}\n{response.text}")
+        except Exception as e:
+            self.error.emit(str(e))
+
+class LoadingDialog(QDialog): # Finestra di caricamento immagine temporanea per ricerca visiva Google Lens
+    def __init__(self, parent=None, message="Attendere..."):
+        super().__init__(parent)
+        self.setWindowTitle("Caricamento")
+        self.setFixedSize(300, 100)
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+        layout = QVBoxLayout()
+        label = QLabel(message)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(label)
+        self.setLayout(layout)
 
 class Photo(QMainWindow):
     def __init__(self):
         super().__init__()
-        # INIT -----------------------------------------------------------------------------------------------------
         self.setWindowIcon(QIcon("icons/gallery.svg"))
         self.setWindowTitle("Photo Gallery")  # Imposta il titolo della finestra
         self.setGeometry(100, 100, 450, 700)  # Imposta la dimensione della finestra
@@ -83,6 +122,12 @@ class Photo(QMainWindow):
         self.zoom_reset_btn.setFixedSize(50, 50)
         self.zoom_reset_btn.setStyleSheet("padding: 5px;")
         self.zoom_reset_btn.clicked.connect(self.reset_zoom)
+        # Pulsante ricerca visiva
+        self.search_btn = QPushButton()
+        self.search_btn.setIcon(QIcon("icons/search_white.png" if self.is_dark_theme() else "icons/search.png"))        
+        self.search_btn.setFixedSize(50, 50)
+        self.search_btn.setStyleSheet("padding: 5px;")
+        self.search_btn.clicked.connect(self.search_image)   
         # Pulsante Zoom In
         self.zoom_in_btn = QPushButton()
         self.zoom_in_btn.setIcon(QIcon("icons/zoomin_white.png" if self.is_dark_theme() else "icons/zoomin.png"))        
@@ -98,6 +143,7 @@ class Photo(QMainWindow):
         btn_layout.addWidget(self.prev_btn)
         btn_layout.addWidget(self.zoom_out_btn)
         btn_layout.addWidget(self.zoom_reset_btn)
+        btn_layout.addWidget(self.search_btn)
         btn_layout.addWidget(self.zoom_in_btn)        
         btn_layout.addWidget(self.next_btn)
 
@@ -300,6 +346,38 @@ class Photo(QMainWindow):
             self.layout.setContentsMargins(0, 0, 0, 0)
             self.update_display()
         self.update()
+    # RICERCA VISIVA CON GOOGLE LENS ----------------------------------------------------------------------------
+    def search_image(self):
+        if not self.image_paths:
+            QMessageBox.warning(self, "Attenzione", "Nessuna immagine da cercare.")
+            return
+        image_path = self.image_paths[self.current_index]
+        client_id = "ec470077f964304"
+        # Finestra di attesa
+        self.loading_dialog = LoadingDialog(self, "Caricamento dell'immagine su Imgur...")
+        self.loading_dialog.show()
+        # Setup del thread e uploader
+        self.thread = QThread()
+        self.uploader = ImgurUploader(image_path, client_id)
+        self.uploader.moveToThread(self.thread)
+        # Connessioni dei segnali
+        self.thread.started.connect(self.uploader.run)
+        self.uploader.finished.connect(self.upload_success)
+        self.uploader.error.connect(self.upload_error)
+        self.uploader.finished.connect(self.thread.quit)
+        self.uploader.error.connect(self.thread.quit)
+        self.uploader.finished.connect(self.uploader.deleteLater)
+        self.uploader.error.connect(self.uploader.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+        self.thread.start()
+    def upload_success(self, img_url):
+        self.loading_dialog.close()
+        encoded_url = quote(img_url, safe='')
+        lens_url = f"https://lens.google.com/uploadbyurl?url={encoded_url}"
+        webbrowser.open_new_tab(lens_url)
+    def upload_error(self, message):
+        self.loading_dialog.close()
+        QMessageBox.critical(self, "Errore", message)
     # GESTIONE DI EVENTI DEL MOUSE ------------------------------------------------------------------------------
     def mousePressEvent(self, event):
         if (event.button() == Qt.MouseButton.LeftButton and 
@@ -709,7 +787,8 @@ class Photo(QMainWindow):
             self.print_btn: "print",
             self.fullscreen_img_btn: "fullscreen",
             self.zoom_in_btn: "zoomin",
-            self.zoom_out_btn: "zoomout"
+            self.zoom_out_btn: "zoomout",
+            self.search_btn: "search"
         }    
         for btn, icon_name in btn_icons.items():
             btn.setIcon(QIcon(f"icons/{icon_name}_white.png" if is_dark else f"icons/{icon_name}.png"))
