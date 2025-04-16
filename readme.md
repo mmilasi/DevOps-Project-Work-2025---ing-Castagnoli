@@ -3,7 +3,36 @@ ITS Adriano Olivetti - DevOps 2024/2026 - Tutor: Ing. Stefano Castagnoli
 
 # Italiano
 
-### Descrizione
+### Obbiettivo e Workflow
+#### Obbiettivo
+L'obbiettivo del Project Work è la creazione di una GUI per la visualizzazione di immagini in linguaggio Python.
+I requisiti minimi richiesti dal professore sono i seguenti:
+- Area di testo
+- Barra di stato
+- Bottoni
+- Casella di testo
+- Caselle di selezione
+- Finestre di dialogo (apri/salva file)
+- Menù
+
+La finestra e la posizione dei controlli dovranno adattarsi automaticamente in seguito alla modifica della dimensione della finestra stessa​.
+
+#### Workflow
+**1. Definizione schematica dell'UI richiesta con utilizzo di Canva**
+<img src="https://i.imgur.com/dIOPddf.png" style="width: 80%; padding: 10px; display: block; margin: auto;">
+
+**2. Valutazione e scelta di Framework**
+
+Dopo aver valutato **Tkinter, Kivy e PyQt,** ho scelto di utilizzare **PyQt** per lo sviluppo della mia app.
+
+Tkinter, pur essendo incluso in Python e semplice da usare, ha un'interfaccia grafica datata e limitata, con pochi widget avanzati. La sua estetica poco moderna non si adattava alla qualità visiva che volevo ottenere.
+
+Kivy, invece, è più orientato al mobile e a interfacce touch. Nonostante sia flessibile e moderno, non offre un look & feel nativo su desktop e può risultare meno intuitivo per applicazioni tradizionali.
+
+PyQt, al contrario, offre un'interfaccia grafica moderna, un set completo di widget professionali e un'ottima documentazione. La presenza di numerosi esempi pratici e una community attiva lo rendono ideale per progetti desktop complessi. Inoltre, la possibilità di personalizzare facilmente lo stile ha contribuito a soddisfare le mie esigenze estetiche, nettamente superiori rispetto a quanto offerto da Tkinter.
+In sintesi, ritengo che PyQt rappresenta la scelta più completa ed equilibrata tra funzionalità, estetica e supporto.
+
+### Applicazione
 Photo Gallery è un'applicazione desktop per visualizzare e gestire collezioni di immagini. Offre funzionalità come zoom, rotazione, like, descrizioni, selezione multipla, ricerca visiva e molto altro.
 
 ### Funzionalità principali
@@ -53,6 +82,36 @@ Photo Gallery è un'applicazione desktop per visualizzare e gestire collezioni d
  - La ricerca visiva richiede una connessione internet funzionante  
 
 # English
+
+### Objective and Workflow
+#### Objective
+The goal of the Project Work is the creation of a GUI for image visualization using the Python programming language.  
+The minimum requirements set by the professor are as follows:  
+- Text area  
+- Status bar  
+- Buttons  
+- Text box  
+- Check boxes  
+- Dialog windows (open/save file)  
+- Menu  
+
+The window and the position of the controls must adjust automatically when the window is resized.
+
+#### Workflow
+**1. Required UI graphical definition using Canva**  
+<img src="https://i.imgur.com/83KMrWe.png" style="width: 80%; padding: 10px; display: block; margin: auto;">
+
+**2. Evaluation and choice of Framework**
+
+After evaluating **Tkinter, Kivy, and PyQt**, I chose to use **PyQt** for the development of my app.
+
+Tkinter, although included in Python and easy to use, has an outdated and limited graphical interface, with few advanced widgets. Its outdated aesthetics did not match the visual quality I wanted to achieve.
+
+Kivy, on the other hand, is more mobile and touch interfaces oriented. Although it is flexible and modern, it does not offer a native desktop look & feel and may be less intuitive for traditional applications.
+
+PyQt, on the other hand, offers a modern graphical interface, a full set of professional widgets, and excellent documentation. The presence of numerous practical examples and an active community makes it ideal for complex desktop projects. Moreover, the possibility to easily customize the style helped meet my aesthetic needs, which are far superior compared to what Tkinter offers.
+
+Long story short, I believe PyQt is the most complete and balanced choice in terms of functionality, aesthetics, and support!
 
 ### Description
 Photo Gallery is a desktop application for viewing and managing image collections. It offers features like zoom, rotation, likes, descriptions, multi-selection, visual search and more.
