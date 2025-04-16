@@ -40,7 +40,7 @@ class ImgurUploader(QObject): # dedicato al caricamento di immagini per la ricer
 class LoadingDialog(QDialog): # Finestra di caricamento immagine temporanea per ricerca visiva Google Lens
     def __init__(self, parent=None, message="Attendere..."):
         super().__init__(parent)
-        self.setWindowTitle("Caricamento")
+        self.setWindowTitle("Google Lens")
         self.setFixedSize(300, 100)
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
         layout = QVBoxLayout()
@@ -354,7 +354,7 @@ class Photo(QMainWindow):
         image_path = self.image_paths[self.current_index]
         client_id = "ec470077f964304"
         # Finestra di attesa
-        self.loading_dialog = LoadingDialog(self, "Caricamento dell'immagine su Imgur...")
+        self.loading_dialog = LoadingDialog(self, "Avvio ricerca visiva...")
         self.loading_dialog.show()
         # Setup del thread e uploader
         self.thread = QThread()
